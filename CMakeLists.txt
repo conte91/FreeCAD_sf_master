@@ -529,7 +529,9 @@ else(FREECAD_LIBPACK_USE)
 
 # -------------------------------- pcl ----------------------------------
 
+    SET(TMP_BOOST_LIBS ${Boost_LIBRARIES})
     find_package(PCL QUIET COMPONENTS common kdtree features surface io)
+    SET( Boost_LIBRARIES ${Boost_LIBRARIES} ${TMP_BOOST_LIBS})
     if (NOT PCL_FOUND)
         MESSAGE("-- pcl not found")
     endif(NOT PCL_FOUND)
