@@ -135,7 +135,7 @@ def createMeshView(obj,direction=FreeCAD.Vector(0,0,-1),outeronly=False,largesto
                 shape = shape.fuse(p)
             else:
                 shape = p
-        except:
+        except Part.OCCError:
             pass
     shape = shape.removeSplitter()
 
@@ -151,7 +151,7 @@ def createMeshView(obj,direction=FreeCAD.Vector(0,0,-1),outeronly=False,largesto
         if largest:
             try:
                 f = Part.Face(w)
-            except:
+            except Part.OCCError:
                 print "Unable to produce a face from the outer wire."
             else:
                 shape = f
@@ -237,7 +237,6 @@ class _Equipment(ArchComponent.Component):
         obj.addProperty("Part::PropertyPartShape","SideView","Arch",translate("Arch","an optional 2D shape representing a side view of this equipment"))
         obj.addProperty("App::PropertyString","Model","Arch",translate("Arch","The model description of this equipment"))
         obj.addProperty("App::PropertyString","Url","Arch",translate("Arch","The url of the product page of this equipment"))
-        obj.addProperty("App::PropertyEnumeration","Role","Arch",translate("Arch","The role of this equipment"))
         self.Type = "Equipment"
         obj.Role = Roles
         obj.Proxy = self

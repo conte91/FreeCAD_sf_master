@@ -180,12 +180,14 @@ PyObject* Application::sLoadFile(PyObject * /*self*/, PyObject *args,PyObject * 
 
 PyObject* Application::sOpenDocument(PyObject * /*self*/, PyObject *args,PyObject * /*kwd*/)
 {
-    char *pstr;
-    if (!PyArg_ParseTuple(args, "s", &pstr))     // convert args: Python->C
-        return NULL;                             // NULL triggers exception
+    char* Name;
+    if (!PyArg_ParseTuple(args, "et","utf-8",&Name))
+        return NULL;
+    std::string EncodedName = std::string(Name);
+    PyMem_Free(Name);
     try {
         // return new document
-        return (GetApplication().openDocument(pstr)->getPyObject());
+        return (GetApplication().openDocument(EncodedName.c_str())->getPyObject());
     }
     catch (const Base::Exception& e) {
         PyErr_SetString(PyExc_IOError, e.what());
@@ -193,7 +195,7 @@ PyObject* Application::sOpenDocument(PyObject * /*self*/, PyObject *args,PyObjec
     }
     catch (const std::exception& e) {
         // might be subclass from zipios
-        PyErr_Format(PyExc_IOError, "Invalid project file %s: %s\n", pstr, e.what());
+        PyErr_Format(PyExc_IOError, "Invalid project file %s: %s\n", EncodedName.c_str(), e.what());
         return 0L;
     }
 }
@@ -220,7 +222,7 @@ PyObject* Application::sSetActiveDocument(PyObject * /*self*/, PyObject *args,Py
         GetApplication().setActiveDocument(pstr);
     }
     catch (const Base::Exception& e) {
-        PyErr_SetString(PyExc_Exception, e.what());
+        PyErr_SetString(Base::BaseExceptionFreeCADError, e.what());
         return NULL;
     }
 
@@ -260,7 +262,7 @@ PyObject* Application::sSaveDocument(PyObject * /*self*/, PyObject *args,PyObjec
     Document* doc = GetApplication().getDocument(pDoc);
     if ( doc ) {
         if ( doc->save() == false ) {
-            PyErr_Format(PyExc_Exception, "Cannot save document '%s'", pDoc);
+            PyErr_Format(Base::BaseExceptionFreeCADError, "Cannot save document '%s'", pDoc);
             return 0L;
         }
     }

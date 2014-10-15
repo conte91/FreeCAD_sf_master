@@ -16,7 +16,7 @@ std::string UnitPy::representation(void) const
     const UnitSignature &  Sig = getUnitPtr()->getSignature();
 	std::stringstream ret;
     ret << "Unit: "; 
-	ret << getUnitPtr()->getString().toLatin1().constData() << " (";
+	ret << getUnitPtr()->getString().toUtf8().constData() << " (";
     ret << Sig.Length << ",";                 
     ret << Sig.Mass  << ",";                    
     ret << Sig.Time  << ",";                   
@@ -25,7 +25,7 @@ std::string UnitPy::representation(void) const
     ret << Sig.AmountOfSubstance  << ",";      
     ret << Sig.LuminoseIntensity  << ",";      
     ret << Sig.Angle  << ")"; 
-    std::string type = getUnitPtr()->getTypeString().toLatin1().constData();
+    std::string type = getUnitPtr()->getTypeString().toUtf8().constData();
     if(! type.empty())
         ret << " [" << type << "]";
 
@@ -72,10 +72,11 @@ int UnitPy::PyInit(PyObject* args, PyObject* kwd)
         return 0;
     }
     PyErr_Clear(); // set by PyArg_ParseTuple()
-    const char* string;
-    if (PyArg_ParseTuple(args,"s", &string)) {
-            
-        *self = Quantity::parse(QString::fromLatin1(string)).getUnit();
+    char* string;
+    if (PyArg_ParseTuple(args,"et", "utf-8", &string)) {
+        QString qstr = QString::fromUtf8(string);
+        PyMem_Free(string);
+        *self = Quantity::parse(qstr).getUnit();
         return 0;
     }
 
@@ -178,7 +179,7 @@ PyObject* UnitPy::richCompare(PyObject *v, PyObject *w, int op)
 
 Py::String UnitPy::getType(void) const
 {
-    return Py::String(getUnitPtr()->getTypeString().toLatin1());
+    return Py::String(getUnitPtr()->getTypeString().toUtf8(),"utf-8");
 }
 
 

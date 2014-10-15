@@ -13,7 +13,6 @@ include_directories(
     ${COIN3D_INCLUDE_DIR}
     ${QT_INCLUDE_DIR}
     ${ZLIB_INCLUDE_DIR}
-    ${SOQT_INCLUDE_DIR}
     ${PYTHON_INCLUDE_PATH}
     ${XERCESC_INCLUDE_DIR}
 )
@@ -28,7 +27,6 @@ set(PartDesignGui_LIBS
 
 set(PartDesignGui_MOC_HDRS
     FeaturePickDialog.h
-    ReferenceSelection.h
     TaskPadParameters.h
     TaskPocketParameters.h
     TaskChamferParameters.h

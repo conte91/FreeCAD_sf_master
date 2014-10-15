@@ -233,11 +233,13 @@ PyObject* Application::sShowObject(PyObject * /*self*/, PyObject *args,PyObject 
 PyObject* Application::sOpen(PyObject * /*self*/, PyObject *args,PyObject * /*kwd*/)
 {
     // only used to open Python files
-    const char* Name;
-    if (!PyArg_ParseTuple(args, "s",&Name))
+    char* Name;
+    if (!PyArg_ParseTuple(args, "et","utf-8",&Name))
         return NULL;
+    std::string Utf8Name = std::string(Name);
+    PyMem_Free(Name);
     PY_TRY {
-        QString fileName = QString::fromUtf8(Name);
+        QString fileName = QString::fromUtf8(Utf8Name.c_str());
         QFileInfo fi;
         fi.setFile(fileName);
         QString ext = fi.completeSuffix().toLower();
@@ -291,13 +293,15 @@ PyObject* Application::sOpen(PyObject * /*self*/, PyObject *args,PyObject * /*kw
 
 PyObject* Application::sInsert(PyObject * /*self*/, PyObject *args,PyObject * /*kwd*/)
 {
-    const char* Name;
-    const char* DocName=0;
-    if (!PyArg_ParseTuple(args, "s|s",&Name,&DocName))
+    char* Name;
+    char* DocName=0;
+    if (!PyArg_ParseTuple(args, "et|s","utf-8",&Name,&DocName))
         return NULL;
+    std::string Utf8Name = std::string(Name);
+    PyMem_Free(Name);
 
     PY_TRY {
-        QString fileName = QString::fromUtf8(Name);
+        QString fileName = QString::fromUtf8(Utf8Name.c_str());
         QFileInfo fi;
         fi.setFile(fileName);
         QString ext = fi.completeSuffix().toLower();
@@ -352,9 +356,11 @@ PyObject* Application::sInsert(PyObject * /*self*/, PyObject *args,PyObject * /*
 PyObject* Application::sExport(PyObject * /*self*/, PyObject *args,PyObject * /*kwd*/)
 {
     PyObject* object;
-    const char* filename;
-    if (!PyArg_ParseTuple(args, "Os",&object,&filename))
+    char* Name;
+    if (!PyArg_ParseTuple(args, "Oet",&object,"utf-8",&Name))
         return NULL;
+    std::string Utf8Name = std::string(Name);
+    PyMem_Free(Name);
 
     PY_TRY {
         App::Document* doc = 0;
@@ -370,7 +376,7 @@ PyObject* Application::sExport(PyObject * /*self*/, PyObject *args,PyObject * /*
 
         // get the view that belongs to the found document
         if (doc) {
-            QString fileName = QString::fromUtf8(filename);
+            QString fileName = QString::fromUtf8(Utf8Name.c_str());
             QFileInfo fi;
             fi.setFile(fileName);
             QString ext = fi.completeSuffix().toLower();
@@ -380,7 +386,7 @@ PyObject* Application::sExport(PyObject * /*self*/, PyObject *args,PyObject * /*
                 Gui::Document* gui_doc = Application::Instance->getDocument(doc);
                 std::list<MDIView*> view3d = gui_doc->getMDIViewsOfType(View3DInventor::getClassTypeId());
                 if (view3d.empty()) {
-                    PyErr_SetString(PyExc_Exception, "Cannot export to SVG because document doesn't have a 3d view");
+                    PyErr_SetString(Base::BaseExceptionFreeCADError, "Cannot export to SVG because document doesn't have a 3d view");
                     return 0;
                 }
                 else {
@@ -535,7 +541,7 @@ PyObject* Application::sActivateWorkbenchHandler(PyObject * /*self*/, PyObject *
         Instance->activateWorkbench(psKey);
     }
     catch (const Base::Exception& e) {
-        PyErr_SetString(PyExc_Exception, e.what());
+        PyErr_SetString(Base::BaseExceptionFreeCADError, e.what());
         return 0;
     }
     catch (const XERCES_CPP_NAMESPACE_QUALIFIER TranscodingException& e) {
@@ -551,7 +557,7 @@ PyObject* Application::sActivateWorkbenchHandler(PyObject * /*self*/, PyObject *
         return 0;
     }
     catch (...) {
-        PyErr_SetString(PyExc_Exception, "Unknown C++ exception raised in activateWorkbench");
+        PyErr_SetString(Base::BaseExceptionFreeCADError, "Unknown C++ exception raised in activateWorkbench");
         return 0;
     }
 
@@ -687,9 +693,10 @@ PyObject* Application::sActiveWorkbenchHandler(PyObject * /*self*/, PyObject *ar
 PyObject* Application::sAddResPath(PyObject * /*self*/, PyObject *args,PyObject * /*kwd*/)
 {
     char* filePath;
-    if (!PyArg_ParseTuple(args, "s", &filePath))     // convert args: Python->C
+    if (!PyArg_ParseTuple(args, "et", "utf-8", &filePath))     // convert args: Python->C
         return NULL;                    // NULL triggers exception
     QString path = QString::fromUtf8(filePath);
+    PyMem_Free(filePath);
     if (QDir::isRelativePath(path)) {
         // Home path ends with '/'
         QString home = QString::fromUtf8(App::GetApplication().GetHomePath());
@@ -705,9 +712,10 @@ PyObject* Application::sAddResPath(PyObject * /*self*/, PyObject *args,PyObject 
 PyObject* Application::sAddLangPath(PyObject * /*self*/, PyObject *args,PyObject * /*kwd*/)
 {
     char* filePath;
-    if (!PyArg_ParseTuple(args, "s", &filePath))     // convert args: Python->C
+    if (!PyArg_ParseTuple(args, "et", "utf-8", &filePath))     // convert args: Python->C
         return NULL;                    // NULL triggers exception
     QString path = QString::fromUtf8(filePath);
+    PyMem_Free(filePath);
     if (QDir::isRelativePath(path)) {
         // Home path ends with '/'
         QString home = QString::fromUtf8(App::GetApplication().GetHomePath());
@@ -722,9 +730,10 @@ PyObject* Application::sAddLangPath(PyObject * /*self*/, PyObject *args,PyObject
 PyObject* Application::sAddIconPath(PyObject * /*self*/, PyObject *args,PyObject * /*kwd*/)
 {
     char* filePath;
-    if (!PyArg_ParseTuple(args, "s", &filePath))     // convert args: Python->C 
-        return NULL;                    // NULL triggers exception 
+    if (!PyArg_ParseTuple(args, "et", "utf-8", &filePath))     // convert args: Python->C
+        return NULL;                    // NULL triggers exception
     QString path = QString::fromUtf8(filePath);
+    PyMem_Free(filePath);
     if (QDir::isRelativePath(path)) {
         // Home path ends with '/'
         QString home = QString::fromUtf8(App::GetApplication().GetHomePath());
@@ -763,7 +772,7 @@ PyObject* Application::sAddIcon(PyObject * /*self*/, PyObject *args,PyObject * /
     }
 
     if (icon.isNull()) {
-        PyErr_SetString(PyExc_Exception, "Invalid icon added to application");
+        PyErr_SetString(Base::BaseExceptionFreeCADError, "Invalid icon added to application");
         return NULL;
     }
 
@@ -813,11 +822,11 @@ PyObject* Application::sAddCommand(PyObject * /*self*/, PyObject *args,PyObject 
 		Application::Instance->commandManager().addCommand(new PythonCommand(pName,pcCmdObj,pSource));
     }
     catch (const Base::Exception& e) {
-        PyErr_SetString(PyExc_Exception, e.what());
+        PyErr_SetString(Base::BaseExceptionFreeCADError, e.what());
         return 0;
     }
     catch (...) {
-        PyErr_SetString(PyExc_Exception, "Unknown C++ exception raised in Application::sAddCommand()");
+        PyErr_SetString(Base::BaseExceptionFreeCADError, "Unknown C++ exception raised in Application::sAddCommand()");
         return 0;
     }
 #endif
@@ -838,7 +847,7 @@ PyObject* Application::sRunCommand(PyObject * /*self*/, PyObject *args,PyObject 
         return Py_None;
     }
     else {
-        PyErr_Format(PyExc_Exception, "No such command '%s'", pName);
+        PyErr_Format(Base::BaseExceptionFreeCADError, "No such command '%s'", pName);
         return 0;
     }
 } 

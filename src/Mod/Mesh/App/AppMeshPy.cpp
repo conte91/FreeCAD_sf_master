@@ -52,17 +52,19 @@ using namespace MeshCore;
 /* module functions */
 static PyObject * read(PyObject *self, PyObject *args)
 {
-    const char* Name;
-    if (!PyArg_ParseTuple(args, "s",&Name))
+    char* Name;
+    if (!PyArg_ParseTuple(args, "et","utf-8",&Name))
         return NULL;
+    std::string EncodedName = std::string(Name);
+    PyMem_Free(Name);
 
     PY_TRY {
         std::auto_ptr<MeshObject> mesh(new MeshObject);
-        if (mesh->load(Name)) {
+        if (mesh->load(EncodedName.c_str())) {
             return new MeshPy(mesh.release());
         }
         else {
-            PyErr_SetString(PyExc_Exception, "Loading of mesh was aborted");
+            PyErr_SetString(Base::BaseExceptionFreeCADError, "Loading of mesh was aborted");
             return NULL;
         }
     } PY_CATCH;
@@ -72,14 +74,16 @@ static PyObject * read(PyObject *self, PyObject *args)
 
 static PyObject * open(PyObject *self, PyObject *args)
 {
-    const char* Name;
-    if (!PyArg_ParseTuple(args, "s",&Name))
+    char* Name;
+    if (!PyArg_ParseTuple(args, "et","utf-8",&Name))
         return NULL;
+    std::string EncodedName = std::string(Name);
+    PyMem_Free(Name);
 
     PY_TRY {
         MeshObject mesh;
-        if (mesh.load(Name)) {
-            Base::FileInfo file(Name);
+        if (mesh.load(EncodedName.c_str())) {
+            Base::FileInfo file(EncodedName.c_str());
             // create new document and add Import feature
             App::Document *pcDoc = App::GetApplication().newDocument("Unnamed");
             unsigned long segmct = mesh.countSegments();
@@ -108,11 +112,12 @@ static PyObject * open(PyObject *self, PyObject *args)
 
 static PyObject * importer(PyObject *self, PyObject *args)
 {
-    const char* Name;
-    const char* DocName=0;
-
-    if (!PyArg_ParseTuple(args, "s|s",&Name,&DocName))
+    char* Name;
+    char* DocName=0;
+    if (!PyArg_ParseTuple(args, "et|s","utf-8",&Name,&DocName))
         return NULL;
+    std::string EncodedName = std::string(Name);
+    PyMem_Free(Name);
 
     PY_TRY {
         App::Document *pcDoc = 0;
@@ -126,8 +131,8 @@ static PyObject * importer(PyObject *self, PyObject *args)
         }
 
         MeshObject mesh;
-        if (mesh.load(Name)) {
-            Base::FileInfo file(Name);
+        if (mesh.load(EncodedName.c_str())) {
+            Base::FileInfo file(EncodedName.c_str());
             unsigned long segmct = mesh.countSegments();
             if (segmct > 1) {
                 for (unsigned long i=0; i<segmct; i++) {
@@ -155,9 +160,11 @@ static PyObject * importer(PyObject *self, PyObject *args)
 static PyObject * exporter(PyObject *self, PyObject *args)
 {
     PyObject* object;
-    const char* filename;
-    if (!PyArg_ParseTuple(args, "Os",&object,&filename))
+    char* Name;
+    if (!PyArg_ParseTuple(args, "Oet",&object,"utf-8",&Name))
         return NULL;
+    std::string EncodedName = std::string(Name);
+    PyMem_Free(Name);
 
     float fTolerance = 0.1f;
     MeshObject global_mesh;
@@ -200,7 +207,7 @@ static PyObject * exporter(PyObject *self, PyObject *args)
         }
 
         // export mesh compound
-        global_mesh.save(filename);
+        global_mesh.save(EncodedName.c_str());
     } PY_CATCH;
 
     Py_Return;
@@ -267,7 +274,7 @@ createSphere(PyObject *self, PyObject *args)
     PY_TRY {
         MeshObject* mesh = MeshObject::createSphere(radius, sampling);
         if (!mesh) {
-            PyErr_SetString(PyExc_Exception, "Creation of sphere failed");
+            PyErr_SetString(Base::BaseExceptionFreeCADError, "Creation of sphere failed");
             return NULL;
         }
         return new MeshPy(mesh);
@@ -286,7 +293,7 @@ createEllipsoid(PyObject *self, PyObject *args)
     PY_TRY {
         MeshObject* mesh = MeshObject::createEllipsoid(radius1, radius2, sampling);
         if (!mesh) {
-            PyErr_SetString(PyExc_Exception, "Creation of ellipsoid failed");
+            PyErr_SetString(Base::BaseExceptionFreeCADError, "Creation of ellipsoid failed");
             return NULL;
         }
         return new MeshPy(mesh);
@@ -307,7 +314,7 @@ createCylinder(PyObject *self, PyObject *args)
     PY_TRY {
         MeshObject* mesh = MeshObject::createCylinder(radius, length, closed, edgelen, sampling);
         if (!mesh) {
-            PyErr_SetString(PyExc_Exception, "Creation of cylinder failed");
+            PyErr_SetString(Base::BaseExceptionFreeCADError, "Creation of cylinder failed");
             return NULL;
         }
         return new MeshPy(mesh);
@@ -329,7 +336,7 @@ createCone(PyObject *self, PyObject *args)
     PY_TRY {
         MeshObject* mesh = MeshObject::createCone(radius1, radius2, len, closed, edgelen, sampling);
         if (!mesh) {
-            PyErr_SetString(PyExc_Exception, "Creation of cone failed");
+            PyErr_SetString(Base::BaseExceptionFreeCADError, "Creation of cone failed");
             return NULL;
         }
         return new MeshPy(mesh);
@@ -348,7 +355,7 @@ createTorus(PyObject *self, PyObject *args)
     PY_TRY {
         MeshObject* mesh = MeshObject::createTorus(radius1, radius2, sampling);
         if (!mesh) {
-            PyErr_SetString(PyExc_Exception, "Creation of torus failed");
+            PyErr_SetString(Base::BaseExceptionFreeCADError, "Creation of torus failed");
             return NULL;
         }
         return new MeshPy(mesh);
@@ -373,7 +380,7 @@ createBox(PyObject *self, PyObject *args)
             mesh = MeshObject::createCube(length, width, height, edgelen);
 
         if (!mesh) {
-            PyErr_SetString(PyExc_Exception, "Creation of box failed");
+            PyErr_SetString(Base::BaseExceptionFreeCADError, "Creation of box failed");
             return NULL;
         }
         return new MeshPy(mesh);
@@ -389,7 +396,7 @@ calculateEigenTransform(PyObject *self, PyObject *args)
         return NULL;
 
     if(! PySequence_Check(input) ){
-        PyErr_SetString(PyExc_Exception, "Input have to be a sequence of Base.Vector()");
+        PyErr_SetString(Base::BaseExceptionFreeCADError, "Input have to be a sequence of Base.Vector()");
         return NULL;
     }
 

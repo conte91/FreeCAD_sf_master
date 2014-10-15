@@ -1,12 +1,12 @@
 # FreeCAD init module
-# (c) 2001 Jürgen Riegel
+# (c) 2001 Juergen Riegel
 #
 # Gathering all the information to start FreeCAD
 # This is the second one of three init scripts, the third one
 # runs when the gui is up
 
 #***************************************************************************
-#*   (c) Jürgen Riegel (juergen.riegel@web.de) 2002                        *
+#*   (c) Juergen Riegel (juergen.riegel@web.de) 2002                       *
 #*                                                                         *
 #*   This file is part of the FreeCAD CAx development system.              *
 #*                                                                         *
@@ -37,7 +37,7 @@ import FreeCAD
 def InitApplications():
 	try:
 		import sys,os
-	except:
+	except ImportError:
 		FreeCAD.PrintError("\n\nSeems the python standard libs are not installed, bailing out!\n\n")
 		raise
 	# Checking on FreeCAD module path ++++++++++++++++++++++++++++++++++++++++++

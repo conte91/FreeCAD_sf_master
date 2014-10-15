@@ -680,6 +680,7 @@ class SpreadsheetPropertyController:
                             return
                     try:
                         setattr(b,p,value)
+                        FreeCAD.ActiveDocument.recompute()
                         if DEBUG: print "setting property ",obj.TargetProperty, " of object ",obj.TargetObject.Name, " to ",value
                     except:
                         if DEBUG: print "unable to set property ",obj.TargetProperty, " of object ",obj.TargetObject.Name, " to ",value
@@ -1046,7 +1047,7 @@ def insert(filename,docname):
     "called when freecad wants to import a csv file"
     try:
         doc = FreeCAD.getDocument(docname)
-    except:
+    except NameError:
         doc = FreeCAD.newDocument(docname)
     FreeCAD.ActiveDocument = doc
     read(filename)
@@ -1068,10 +1069,10 @@ def read(filename):
                 #print "setting ",cl+str(rn)," ",c
                 try:
                     c = int(c)
-                except:
+                except ValueError:
                     try:
                         c = float(c)
-                    except:
+                    except ValueError:
                         c = str(c)
                 setattr(sp.Proxy,cl+str(rn),c)
                 cn += 1

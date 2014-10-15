@@ -99,6 +99,7 @@
 #include <App/Document.h>
 #include <App/DocumentObjectPy.h>
 
+#include "OCCError.h"
 #include "TopoShape.h"
 #include "TopoShapePy.h"
 #include "TopoShapeEdgePy.h"
@@ -142,23 +143,25 @@ extern const char* BRepBuilderAPI_FaceErrorText(BRepBuilderAPI_FaceError fe);
 /* module functions */
 static PyObject * open(PyObject *self, PyObject *args)
 {
-    const char* Name;
-    if (!PyArg_ParseTuple(args, "s",&Name))
-        return NULL;                         
+    char* Name;
+    if (!PyArg_ParseTuple(args, "et","utf-8",&Name))
+        return NULL;
+    std::string EncodedName = std::string(Name);
+    PyMem_Free(Name);
 
     PY_TRY {
         //Base::Console().Log("Open in Part with %s",Name);
-        Base::FileInfo file(Name);
+        Base::FileInfo file(EncodedName.c_str());
 
         // extract ending
         if (file.extension() == "")
-            Py_Error(PyExc_Exception,"no file ending");
+            Py_Error(Base::BaseExceptionFreeCADError,"no file ending");
 
         if (file.hasExtension("stp") || file.hasExtension("step")) {
             // create new document and add Import feature
             App::Document *pcDoc = App::GetApplication().newDocument("Unnamed");
 #if 1
-            ImportStepParts(pcDoc,Name);
+            ImportStepParts(pcDoc,EncodedName.c_str());
 #else
             Part::ImportStep *pcFeature = (Part::ImportStep *)pcDoc->addObject("Part::ImportStep",file.fileNamePure().c_str());
             pcFeature->FileName.setValue(Name);
@@ -168,14 +171,14 @@ static PyObject * open(PyObject *self, PyObject *args)
 #if 1
         else if (file.hasExtension("igs") || file.hasExtension("iges")) {
             App::Document *pcDoc = App::GetApplication().newDocument("Unnamed");
-            ImportIgesParts(pcDoc,Name);
+            ImportIgesParts(pcDoc,EncodedName.c_str());
             pcDoc->recompute();
         }
 #endif
         else {
             try {
                 TopoShape shape;
-                shape.read(Name);
+                shape.read(EncodedName.c_str());
 
                 // create new document set loaded shape
                 App::Document *pcDoc = App::GetApplication().newDocument(file.fileNamePure().c_str());
@@ -185,10 +188,10 @@ static PyObject * open(PyObject *self, PyObject *args)
                 pcDoc->recompute();
             }
             catch (const Base::Exception& e) {
-                Py_Error(PyExc_Exception, e.what());
+                Py_Error(Base::BaseExceptionFreeCADError, e.what());
             }
         }
-    } PY_CATCH;
+    } PY_CATCH_OCC;
 
     Py_Return;
 }
@@ -196,18 +199,20 @@ static PyObject * open(PyObject *self, PyObject *args)
 /* module functions */
 static PyObject * insert(PyObject *self, PyObject *args)
 {
-    const char* Name;
+    char* Name;
     const char* DocName;
-    if (!PyArg_ParseTuple(args, "ss",&Name,&DocName))
-        return NULL;                         
+    if (!PyArg_ParseTuple(args, "ets","utf-8",&Name,&DocName))
+        return NULL;
+    std::string EncodedName = std::string(Name);
+    PyMem_Free(Name);
 
     PY_TRY {
         //Base::Console().Log("Insert in Part with %s",Name);
-        Base::FileInfo file(Name);
+        Base::FileInfo file(EncodedName.c_str());
 
         // extract ending
         if (file.extension() == "")
-            Py_Error(PyExc_Exception,"no file ending");
+            Py_Error(Base::BaseExceptionFreeCADError,"no file ending");
         App::Document *pcDoc = App::GetApplication().getDocument(DocName);
         if (!pcDoc) {
             pcDoc = App::GetApplication().newDocument(DocName);
@@ -215,7 +220,7 @@ static PyObject * insert(PyObject *self, PyObject *args)
 
         if (file.hasExtension("stp") || file.hasExtension("step")) {
 #if 1
-            ImportStepParts(pcDoc,Name);
+            ImportStepParts(pcDoc,EncodedName.c_str());
 #else
             // add Import feature
             Part::ImportStep *pcFeature = (Part::ImportStep *)pcDoc->addObject("Part::ImportStep",file.fileNamePure().c_str());
@@ -225,14 +230,14 @@ static PyObject * insert(PyObject *self, PyObject *args)
         }
 #if 1
         else if (file.hasExtension("igs") || file.hasExtension("iges")) {
-            ImportIgesParts(pcDoc,Name);
+            ImportIgesParts(pcDoc,EncodedName.c_str());
             pcDoc->recompute();
         }
 #endif
         else {
             try {
                 TopoShape shape;
-                shape.read(Name);
+                shape.read(EncodedName.c_str());
 
                 Part::Feature *object = static_cast<Part::Feature *>(pcDoc->addObject
                     ("Part::Feature",file.fileNamePure().c_str()));
@@ -240,10 +245,10 @@ static PyObject * insert(PyObject *self, PyObject *args)
                 pcDoc->recompute();
             }
             catch (const Base::Exception& e) {
-                Py_Error(PyExc_Exception, e.what());
+                Py_Error(Base::BaseExceptionFreeCADError, e.what());
             }
         }
-    } PY_CATCH;
+    } PY_CATCH_OCC;
 
     Py_Return;
 }
@@ -252,9 +257,11 @@ static PyObject * insert(PyObject *self, PyObject *args)
 static PyObject * exporter(PyObject *self, PyObject *args)
 {
     PyObject* object;
-    const char* filename;
-    if (!PyArg_ParseTuple(args, "Os",&object,&filename))
+    char* Name;
+    if (!PyArg_ParseTuple(args, "Oet",&object,"utf-8",&Name))
         return NULL;
+    std::string EncodedName = std::string(Name);
+    PyMem_Free(Name);
 
     BRep_Builder builder;
     TopoDS_Compound comp;
@@ -279,9 +286,9 @@ static PyObject * exporter(PyObject *self, PyObject *args)
         }
 
         TopoShape shape(comp);
-        shape.write(filename);
+        shape.write(EncodedName.c_str());
 
-    } PY_CATCH;
+    } PY_CATCH_OCC;
 
     Py_Return;
 }
@@ -289,14 +296,16 @@ static PyObject * exporter(PyObject *self, PyObject *args)
 /* module functions */
 static PyObject * read(PyObject *self, PyObject *args)
 {
-    const char* Name;
-    if (!PyArg_ParseTuple(args, "s",&Name))
-        return NULL;                         
+    char* Name;
+    if (!PyArg_ParseTuple(args, "et","utf-8",&Name))
+        return NULL;
+    std::string EncodedName = std::string(Name);
+    PyMem_Free(Name);
     PY_TRY {
         TopoShape* shape = new TopoShape();
-        shape->read(Name);
+        shape->read(EncodedName.c_str());
         return new TopoShapePy(shape); 
-    } PY_CATCH;
+    } PY_CATCH_OCC;
 }
 
 static PyObject * 
@@ -316,7 +325,7 @@ show(PyObject *self, PyObject *args)
         //TopoShape* shape = new MeshObject(*pShape->getTopoShapeObjectPtr());
         pcFeature->Shape.setValue(pShape->getTopoShapePtr()->_Shape);
         pcDoc->recompute();
-    } PY_CATCH;
+    } PY_CATCH_OCC;
 
     Py_Return;
 }
@@ -382,11 +391,11 @@ static PyObject * makeWireString(PyObject *self, PyObject *args)
             CharList = FT2FC(unichars,pysize,dir,fontfile,height,track); }
     }
     catch (Standard_DomainError) {                                      // Standard_DomainError is OCC error.
-        PyErr_SetString(PyExc_Exception, "makeWireString failed - Standard_DomainError");
+        PyErr_SetString(PartExceptionOCCDomainError, "makeWireString failed - Standard_DomainError");
         return NULL;
     }
     catch (std::runtime_error& e) {                                     // FT2 or FT2FC errors
-        PyErr_SetString(PyExc_Exception, e.what());
+        PyErr_SetString(PartExceptionOCCError, e.what());
         return NULL;
     }
 
@@ -396,7 +405,7 @@ static PyObject * makeWireString(PyObject *self, PyObject *args)
 
 static PyObject * makeWireString(PyObject *self, PyObject *args)
 {
-    PyErr_SetString(PyExc_Exception, "FreeCAD compiled without FreeType support! This method is disabled...");
+    PyErr_SetString(Base::BaseExceptionFreeCADError, "FreeCAD compiled without FreeType support! This method is disabled...");
     return NULL;
 }
 
@@ -426,12 +435,12 @@ makeCompound(PyObject *self, PyObject *args)
         }
         catch (Standard_Failure) {
             Handle_Standard_Failure e = Standard_Failure::Caught();
-            PyErr_SetString(PyExc_Exception, e->GetMessageString());
+            PyErr_SetString(PartExceptionOCCError, e->GetMessageString());
             return 0;
         }
 
         return new TopoShapeCompoundPy(new TopoShape(Comp));
-    } PY_CATCH;
+    } PY_CATCH_OCC;
 }
 
 static PyObject * makeFilledFace(PyObject *self, PyObject *args)
@@ -482,7 +491,7 @@ static PyObject * makeFilledFace(PyObject *self, PyObject *args)
             }
 
             if (numConstraints == 0) {
-                PyErr_SetString(PyExc_Exception, "Failed to created face with no constraints");
+                PyErr_SetString(PartExceptionOCCError, "Failed to created face with no constraints");
                 return 0;
             }
 
@@ -491,16 +500,16 @@ static PyObject * makeFilledFace(PyObject *self, PyObject *args)
                 return new TopoShapeFacePy(new TopoShape(builder.Face()));
             }
             else {
-                PyErr_SetString(PyExc_Exception, "Failed to created face by filling edges");
+                PyErr_SetString(PartExceptionOCCError, "Failed to created face by filling edges");
                 return 0;
             }
         }
         catch (Standard_Failure) {
             Handle_Standard_Failure e = Standard_Failure::Caught();
-            PyErr_SetString(PyExc_Exception, e->GetMessageString());
+            PyErr_SetString(PartExceptionOCCError, e->GetMessageString());
             return 0;
         }
-    } PY_CATCH;
+    } PY_CATCH_OCC;
 }
 
 static PyObject * makeShell(PyObject *self, PyObject *args)
@@ -536,12 +545,12 @@ static PyObject * makeShell(PyObject *self, PyObject *args)
         }
         catch (Standard_Failure) {
             Handle_Standard_Failure e = Standard_Failure::Caught();
-            PyErr_SetString(PyExc_Exception, e->GetMessageString());
+            PyErr_SetString(PartExceptionOCCError, e->GetMessageString());
             return 0;
         }
 
         return new TopoShapeShellPy(new TopoShape(shape));
-    } PY_CATCH;
+    } PY_CATCH_OCC;
 }
 
 static PyObject * makeSolid(PyObject *self, PyObject *args)
@@ -569,7 +578,7 @@ static PyObject * makeSolid(PyObject *self, PyObject *args)
         return new TopoShapeSolidPy(new TopoShape(solid));
     }
     catch (Standard_Failure) {
-        PyErr_SetString(PyExc_Exception, "creation of solid failed");
+        PyErr_SetString(PartExceptionOCCError, "creation of solid failed");
         return NULL;
     }
 }
@@ -585,11 +594,11 @@ static PyObject * makePlane(PyObject *self, PyObject *args)
         return NULL;
 
     if (length < Precision::Confusion()) {
-        PyErr_SetString(PyExc_Exception, "length of plane too small");
+        PyErr_SetString(PartExceptionOCCError, "length of plane too small");
         return NULL;
     }
     if (width < Precision::Confusion()) {
-        PyErr_SetString(PyExc_Exception, "width of plane too small");
+        PyErr_SetString(PartExceptionOCCError, "width of plane too small");
         return NULL;
     }
 
@@ -623,11 +632,11 @@ static PyObject * makePlane(PyObject *self, PyObject *args)
         return new TopoShapeFacePy(new TopoShape((Face.Face()))); 
     }
     catch (Standard_DomainError) {
-        PyErr_SetString(PyExc_Exception, "creation of plane failed");
+        PyErr_SetString(PartExceptionOCCDomainError, "creation of plane failed");
         return NULL;
     }
     catch (Standard_Failure) {
-        PyErr_SetString(PyExc_Exception, "creation of plane failed");
+        PyErr_SetString(PartExceptionOCCError, "creation of plane failed");
         return NULL;
     }
 }
@@ -642,15 +651,15 @@ static PyObject * makeBox(PyObject *self, PyObject *args)
         return NULL;
 
     if (length < Precision::Confusion()) {
-        PyErr_SetString(PyExc_Exception, "length of box too small");
+        PyErr_SetString(PartExceptionOCCError, "length of box too small");
         return NULL;
     }
     if (width < Precision::Confusion()) {
-        PyErr_SetString(PyExc_Exception, "width of box too small");
+        PyErr_SetString(PartExceptionOCCError, "width of box too small");
         return NULL;
     }
     if (height < Precision::Confusion()) {
-        PyErr_SetString(PyExc_Exception, "height of box too small");
+        PyErr_SetString(PartExceptionOCCError, "height of box too small");
         return NULL;
     }
 
@@ -670,7 +679,7 @@ static PyObject * makeBox(PyObject *self, PyObject *args)
         return new TopoShapeSolidPy(new TopoShape(ResultShape)); 
     }
     catch (Standard_DomainError) {
-        PyErr_SetString(PyExc_Exception, "creation of box failed");
+        PyErr_SetString(PartExceptionOCCDomainError, "creation of box failed");
         return NULL;
     }
 }
@@ -690,23 +699,23 @@ static PyObject * makeWedge(PyObject *self, PyObject *args)
     double dz2 = z2max-z2min;
     double dx2 = x2max-x2min;
     if (dx < Precision::Confusion()) {
-        PyErr_SetString(PyExc_Exception, "delta x of wedge too small");
+        PyErr_SetString(PartExceptionOCCError, "delta x of wedge too small");
         return NULL;
     }
     if (dy < Precision::Confusion()) {
-        PyErr_SetString(PyExc_Exception, "delta y of wedge too small");
+        PyErr_SetString(PartExceptionOCCError, "delta y of wedge too small");
         return NULL;
     }
     if (dz < Precision::Confusion()) {
-        PyErr_SetString(PyExc_Exception, "delta z of wedge too small");
+        PyErr_SetString(PartExceptionOCCError, "delta z of wedge too small");
         return NULL;
     }
     if (dz2 < 0) {
-        PyErr_SetString(PyExc_Exception, "delta z2 of wedge is negative");
+        PyErr_SetString(PartExceptionOCCError, "delta z2 of wedge is negative");
         return NULL;
     }
     if (dx2 < 0) {
-        PyErr_SetString(PyExc_Exception, "delta x2 of wedge is negative");
+        PyErr_SetString(PartExceptionOCCError, "delta x2 of wedge is negative");
         return NULL;
     }
 
@@ -727,7 +736,7 @@ static PyObject * makeWedge(PyObject *self, PyObject *args)
         return new TopoShapeSolidPy(new TopoShape(mkSolid.Solid())); 
     }
     catch (Standard_DomainError) {
-        PyErr_SetString(PyExc_Exception, "creation of wedge failed");
+        PyErr_SetString(PartExceptionOCCDomainError, "creation of wedge failed");
         return NULL;
     }
 }
@@ -764,7 +773,7 @@ static PyObject * makeCircle(PyObject *self, PyObject *args)
         return new TopoShapeEdgePy(new TopoShape(edge)); 
     }
     catch (Standard_Failure) {
-        PyErr_SetString(PyExc_Exception, "creation of circle failed");
+        PyErr_SetString(PartExceptionOCCError, "creation of circle failed");
         return NULL;
     }
 }
@@ -795,7 +804,7 @@ static PyObject * makeSphere(PyObject *self, PyObject *args)
         return new TopoShapeSolidPy(new TopoShape(shape));
     }
     catch (Standard_DomainError) {
-        PyErr_SetString(PyExc_Exception, "creation of sphere failed");
+        PyErr_SetString(PartExceptionOCCDomainError, "creation of sphere failed");
         return NULL;
     }
 }
@@ -826,7 +835,7 @@ static PyObject * makeCylinder(PyObject *self, PyObject *args)
         return new TopoShapeSolidPy(new TopoShape(shape));
     }
     catch (Standard_DomainError) {
-        PyErr_SetString(PyExc_Exception, "creation of cylinder failed");
+        PyErr_SetString(PartExceptionOCCDomainError, "creation of cylinder failed");
         return NULL;
     }
 }
@@ -857,7 +866,7 @@ static PyObject * makeCone(PyObject *self, PyObject *args)
         return new TopoShapeSolidPy(new TopoShape(shape));
     }
     catch (Standard_DomainError) {
-        PyErr_SetString(PyExc_Exception, "creation of cone failed");
+        PyErr_SetString(PartExceptionOCCDomainError, "creation of cone failed");
         return NULL;
     }
 }
@@ -888,7 +897,7 @@ static PyObject * makeTorus(PyObject *self, PyObject *args)
         return new TopoShapeSolidPy(new TopoShape(shape));
     }
     catch (Standard_DomainError) {
-        PyErr_SetString(PyExc_Exception, "creation of torus failed");
+        PyErr_SetString(PartExceptionOCCDomainError, "creation of torus failed");
         return NULL;
     }
 }
@@ -913,7 +922,7 @@ static PyObject * makeHelix(PyObject *self, PyObject *args)
     }
     catch (Standard_Failure) {
         Handle_Standard_Failure e = Standard_Failure::Caught();
-        PyErr_SetString(PyExc_Exception, e->GetMessageString());
+        PyErr_SetString(PartExceptionOCCError, e->GetMessageString());
         return 0;
     }
 }
@@ -936,7 +945,7 @@ static PyObject * makeLongHelix(PyObject *self, PyObject *args)
     }
     catch (Standard_Failure) {
         Handle_Standard_Failure e = Standard_Failure::Caught();
-        PyErr_SetString(PyExc_Exception, e->GetMessageString());
+        PyErr_SetString(PartExceptionOCCError, e->GetMessageString());
         return 0;
     }
 }
@@ -954,7 +963,7 @@ static PyObject * makeThread(PyObject *self, PyObject *args)
     }
     catch (Standard_Failure) {
         Handle_Standard_Failure e = Standard_Failure::Caught();
-        PyErr_SetString(PyExc_Exception, e->GetMessageString());
+        PyErr_SetString(PartExceptionOCCError, e->GetMessageString());
         return 0;
     }
 }
@@ -1027,7 +1036,7 @@ static PyObject * makeLine(PyObject *self, PyObject *args)
     }
     // Error 
     if (error) {
-        PyErr_SetString(PyExc_RuntimeError, error);
+        PyErr_SetString(PartExceptionOCCError, error);
         return NULL;
     }
 
@@ -1076,10 +1085,10 @@ static PyObject * makePolygon(PyObject *self, PyObject *args)
         }
         catch (Standard_Failure) {
             Handle_Standard_Failure e = Standard_Failure::Caught();
-            PyErr_SetString(PyExc_Exception, e->GetMessageString());
+            PyErr_SetString(PartExceptionOCCError, e->GetMessageString());
             return 0;
         }
-    } PY_CATCH;
+    } PY_CATCH_OCC;
 }
 
 static PyObject * makeRevolution(PyObject *self, PyObject *args)
@@ -1117,12 +1126,12 @@ static PyObject * makeRevolution(PyObject *self, PyObject *args)
         }
         const TopoDS_Shape& shape = static_cast<TopoShapePy*>(pCrv)->getTopoShapePtr()->_Shape;
         if (shape.IsNull()) {
-            PyErr_SetString(PyExc_Exception, "shape is empty");
+            PyErr_SetString(PartExceptionOCCError, "shape is empty");
             return 0;
         }
 
         if (shape.ShapeType() != TopAbs_EDGE) {
-            PyErr_SetString(PyExc_Exception, "shape is not an edge");
+            PyErr_SetString(PartExceptionOCCError, "shape is not an edge");
             return 0;
         }
 
@@ -1134,7 +1143,7 @@ static PyObject * makeRevolution(PyObject *self, PyObject *args)
         TopLoc_Location loc = edge.Location();
         curve = Handle_Geom_Curve::DownCast(hCurve->Transformed(loc.Transformation()));
         if (curve.IsNull()) {
-            PyErr_SetString(PyExc_Exception, "invalid curve in edge");
+            PyErr_SetString(PartExceptionOCCError, "invalid curve in edge");
             return 0;
         }
 
@@ -1178,7 +1187,7 @@ static PyObject * makeRevolution(PyObject *self, PyObject *args)
         }
     }
     catch (Standard_DomainError) {
-        PyErr_SetString(PyExc_Exception, "creation of revolved shape failed");
+        PyErr_SetString(PartExceptionOCCDomainError, "creation of revolved shape failed");
         return NULL;
     }
 }
@@ -1204,12 +1213,12 @@ static PyObject * makeRuledSurface(PyObject *self, PyObject *args)
             return new TopoShapeShellPy(new TopoShape(shell));
         }
         else {
-            PyErr_SetString(PyExc_Exception, "curves must either be edges or wires");
+            PyErr_SetString(PartExceptionOCCError, "curves must either be edges or wires");
             return 0;
         }
     }
     catch (Standard_Failure) {
-        PyErr_SetString(PyExc_Exception, "creation of ruled surface failed");
+        PyErr_SetString(PartExceptionOCCError, "creation of ruled surface failed");
         return 0;
     }
 }
@@ -1236,7 +1245,7 @@ static PyObject * makeSweepSurface(PyObject *self, PyObject *args)
     }
     catch (Standard_Failure) {
         Handle_Standard_Failure e = Standard_Failure::Caught();
-        PyErr_SetString(PyExc_Exception, e->GetMessageString());
+        PyErr_SetString(PartExceptionOCCError, e->GetMessageString());
         return 0;
     }
 }
@@ -1280,7 +1289,7 @@ static PyObject * makeTube(PyObject *self, PyObject *args)
     }
     catch (Standard_Failure) {
         Handle_Standard_Failure e = Standard_Failure::Caught();
-        PyErr_SetString(PyExc_Exception, e->GetMessageString());
+        PyErr_SetString(PartExceptionOCCError, e->GetMessageString());
         return 0;
     }
 }
@@ -1321,7 +1330,7 @@ static PyObject * makeLoft(PyObject *self, PyObject *args)
     anAlgo.Perform (aLine, aSecGenerator);
 
     if (!anAlgo.IsDone()) {
-        PyErr_SetString(PyExc_Exception, "Failed to create loft surface");
+        PyErr_SetString(PartExceptionOCCError, "Failed to create loft surface");
         return 0;
     }
 
@@ -1365,7 +1374,7 @@ static PyObject * makeLoft(PyObject *self, PyObject *args)
     catch (Standard_Failure) {
         Handle_Standard_Failure e = Standard_Failure::Caught();
         Base::Console().Message("debug: Part.makeLoft catching 'Standard_Failure' msg: '%s'\n", e->GetMessageString());
-        PyErr_SetString(PyExc_Exception, e->GetMessageString());
+        PyErr_SetString(PartExceptionOCCError, e->GetMessageString());
         return 0;
     }
 #endif
@@ -1449,7 +1458,7 @@ static PyObject * toPythonOCC(PyObject *self, PyObject *args)
         return proxy;
     }
     catch (const Base::Exception& e) {
-        PyErr_SetString(PyExc_Exception, e.what());
+        PyErr_SetString(PartExceptionOCCError, e.what());
         return NULL;
     }
 }
@@ -1469,7 +1478,7 @@ static PyObject * fromPythonOCC(PyObject *self, PyObject *args)
         return new TopoShapePy(shape);
     }
     catch (const Base::Exception& e) {
-        PyErr_SetString(PyExc_Exception, e.what());
+        PyErr_SetString(PartExceptionOCCError, e.what());
         return NULL;
     }
 }
@@ -1550,7 +1559,7 @@ static PyObject * getSortedClusters(PyObject *self, PyObject *args)
 {
     PyObject *obj;
     if (!PyArg_ParseTuple(args, "O", &obj)) {
-        PyErr_SetString(PyExc_Exception, "list of edges expected");
+        PyErr_SetString(PartExceptionOCCError, "list of edges expected");
         return 0;
     }
 
@@ -1593,7 +1602,7 @@ static PyObject * sortEdges(PyObject *self, PyObject *args)
 {
     PyObject *obj;
     if (!PyArg_ParseTuple(args, "O", &obj)) {
-        PyErr_SetString(PyExc_Exception, "list of edges expected");
+        PyErr_SetString(PartExceptionOCCError, "list of edges expected");
         return 0;
     }
 
@@ -1629,7 +1638,7 @@ static PyObject * sortEdges(PyObject *self, PyObject *args)
     }
     catch (Standard_Failure) {
         Handle_Standard_Failure e = Standard_Failure::Caught();
-        PyErr_SetString(PyExc_Exception, e->GetMessageString());
+        PyErr_SetString(PartExceptionOCCError, e->GetMessageString());
         return 0;
     }
 }
@@ -1667,7 +1676,7 @@ static PyObject * cast_to_shape(PyObject *self, PyObject *args)
             }
         }
         else {
-            PyErr_SetString(PyExc_Exception, "empty shape");
+            PyErr_SetString(PartExceptionOCCError, "empty shape");
         }
     }
 

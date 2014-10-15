@@ -23,7 +23,6 @@
 
 #include "PreCompiled.h"
 #ifndef _PreComp_
-# include <Python.h>
 # include <QApplication>
 # include <QClipboard>
 # include <QDialogButtonBox>
@@ -33,12 +32,12 @@
 # include <QTextStream>
 # include <QWaitCondition>
 # include <Inventor/C/basic.h>
-# include <Inventor/Qt/SoQtBasic.h>
 #endif
 
 #include "Splashscreen.h"
 #include "ui_AboutApplication.h"
 #include <Base/Console.h>
+#include <CXX/WrapPython.h>
 #include <App/Application.h>
 #include <Gui/MainWindow.h>
 
@@ -507,7 +506,6 @@ void AboutDialog::on_copyButton_clicked()
     str << "Python version: " << PY_VERSION << endl;
     str << "Qt version: " << QT_VERSION_STR << endl;
     str << "Coin version: " << COIN_VERSION << endl;
-    str << "SoQt version: " << SOQT_VERSION << endl;
     it = config.find("OCC_VERSION");
     if (it != config.end())
         str << "OCC version: " << it->second.c_str() << endl;

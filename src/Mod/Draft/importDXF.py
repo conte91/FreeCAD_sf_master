@@ -51,7 +51,7 @@ if gui:
     import FreeCADGui
 try: 
     draftui = FreeCADGui.draftToolBar
-except: 
+except AttributeError: 
     draftui = None
     
 # check dxfLibrary version
@@ -59,7 +59,7 @@ try:
     import dxfLibrary
     import dxfColorMap
     import dxfReader
-except:
+except ImportError:
     libsok = False
     FreeCAD.Console.PrintWarning("DXF libraries not found. Downloading...\n")
 else:
@@ -72,16 +72,22 @@ if not libsok:
     files = ['dxfColorMap.py','dxfImportObjects.py','dxfLibrary.py','dxfReader.py']
     baseurl = 'https://raw.githubusercontent.com/yorikvanhavre/Draft-dxf-importer/'+str(CURRENTDXFLIB)+"/"
     import ArchCommands
+    from FreeCAD import Base
+    progressbar = Base.ProgressIndicator()
+    progressbar.start("Downloading files...",4)
     for f in files:
+        progressbar.next()
         p = None
         p = ArchCommands.download(baseurl+f,force=True)
         if not p:
             FreeCAD.Console.PrintWarning("Download of dxf libraries failed. Please download them manually from\nhttps://github.com/yorikvanhavre/Draft-dxf-importer\nand place them in your macros folder\n")
+            break
+    progressbar.stop() 
 
     sys.path.append(FreeCAD.ConfigGet("UserAppData"))
     try:
         import dxfColorMap, dxfLibrary, dxfReader
-    except:
+    except ImportError:
         dxfReader = None
         dxfLibrary = None
 
@@ -100,7 +106,7 @@ def decodeName(name):
         try:
             decodedName = (name.decode("latin1"))
         except UnicodeDecodeError:
-                print "dxf: error: couldn't determine character encoding"
+                print("dxf: error: couldn't determine character encoding")
                 decodedName = name
     return decodedName
 
@@ -108,30 +114,30 @@ def deformat(text):
     "removes weird formats in texts and wipes UTF characters"
     # remove ACAD string formatation
     #t = re.sub('{([^!}]([^}]|\n)*)}', '', text)
-    #print "input text: ",text
+    #print("input text: ",text)
     t = text.strip("{}")
     t = re.sub("\\\.*?;","",t)
     # replace UTF codes by utf chars
     sts = re.split("\\\\(U\+....)",t)
     ns = u""
     for ss in sts:
-        #print ss, type(ss)
+        #print(ss, type(ss))
         if ss.startswith("U+"):
             ucode = "0x"+ss[2:]
-            ns += unichr(eval(ucode))
+            ns += unichr(eval(ucode)) #Python3 - unichr doesn't exist anymore
         else:
             try:
                 ns += ss.decode("utf8")
-            except:
+            except UnicodeError:
                 try:
                     ns += ss.decode("latin1")
-                except:
-                    print "unable to decode text: ",text
+                except UnicodeError:
+                    print("unable to decode text: ",text)
     t = ns
     # replace degrees, diameters chars
     t = re.sub('%%d','°',t) 
     t = re.sub('%%c','Ø',t)
-    #print "output text: ",t
+    #print("output text: ",t)
     return t
 
 def locateLayer(wantedLayer,color=None):
@@ -318,7 +324,7 @@ def drawLine(line,forceShape=False):
                     return Draft.makeWire([v1,v2])
                 else:
                     return Part.Line(v1,v2).toShape()
-            except:
+            except Part.OCCError:
                 warn(line)
     return None
 
@@ -340,13 +346,13 @@ def drawPolyline(polyline,forceShape=False,num=None):
                     cv = calcBulge(v1,polyline.points[p].bulge,v2)
                     if DraftVecUtils.isColinear([v1,cv,v2]):
                         try: edges.append(Part.Line(v1,v2).toShape())
-                        except: warn(polyline,num)
+                        except Part.OCCError: warn(polyline,num)
                     else:
                         try: edges.append(Part.Arc(v1,cv,v2).toShape())
-                        except: warn(polyline,num)
+                        except Part.OCCError: warn(polyline,num)
                 else:
                     try: edges.append(Part.Line(v1,v2).toShape())
-                    except: warn(polyline,num)
+                    except Part.OCCError: warn(polyline,num)
         verts.append(v2)
         if polyline.closed:
             p1 = polyline.points[len(polyline.points)-1]
@@ -358,12 +364,12 @@ def drawPolyline(polyline,forceShape=False,num=None):
                 if DraftVecUtils.isColinear([v1,cv,v2]):
                     try:
                         edges.append(Part.Line(v1,v2).toShape())
-                    except:
+                    except Part.OCCError:
                         warn(polyline,num)
                 else:
                     try:
                         edges.append(Part.Arc(v1,cv,v2).toShape())
-                    except:
+                    except Part.OCCError:
                         warn(polyline,num)
         if edges:
             try:
@@ -391,7 +397,7 @@ def drawPolyline(polyline,forceShape=False,num=None):
                         return(Part.Face(w))
                     else:
                         return Part.Wire(edges)                          
-            except:
+            except Part.OCCError:
                 warn(polyline,num)
     return None
 
@@ -410,7 +416,7 @@ def drawArc(arc,forceShape=False):
             return Draft.makeCircle(arc.radius,pl,False,firstangle,lastangle)
         else:
             return circle.toShape(math.radians(firstangle),math.radians(lastangle))
-    except:
+    except Part.OCCError:
         warn(arc)
     return None
 
@@ -427,7 +433,7 @@ def drawCircle(circle,forceShape=False):
             return Draft.makeCircle(circle.radius,pl)
         else:
             return curve.toShape()
-    except:
+    except Part.OCCError:
         warn(circle)
     return None
     
@@ -458,7 +464,7 @@ def drawEllipse(ellipse):
             shape = el.toShape(start,end)
             shape.Placement = pl
             return shape
-    except:
+    except Part.OCCError:
         warn(arc)
     return None
 
@@ -472,7 +478,7 @@ def drawFace(face):
     try:
         pol = Part.makePolygon(pl)
         return Part.Face(pol)
-    except:
+    except Part.OCCError:
         warn(face)
     return None
 
@@ -510,7 +516,7 @@ def drawMesh(mesh):
                 md.append([p1,p3,p4])                                
     try:
         return Mesh.Mesh(md)
-    except:
+    except FreeCAD.Base.FreeCADError:
         warn(mesh)
     return None     
 
@@ -536,12 +542,12 @@ def drawSolid(solid):
     if p4 and (p4 != p3) and (p4 != p2) and (p4 != p1):
         try:
             return Part.Face(Part.makePolygon([p1,p2,p4,p3,p1]))
-        except:
+        except Part.OCCError:
             warn(solid)
     else:
         try:
             return Part.Face(Part.makePolygon([p1,p2,p3,p1]))
-        except:
+        except Part.OCCError:
             warn(solid)
     return None
 
@@ -579,14 +585,14 @@ def drawSpline(spline,forceShape=False):
             return ob
         else:
             sp = Part.BSplineCurve()
-            # print knots
+            # print(knots)
             sp.interpolate(verts)
             sh = Part.Wire(sp.toShape())
             if closed:
                 return Part.Face(sh)
             else:
                 return sh                          
-    except:
+    except Part.OCCError:
         warn(spline)
     return None
     
@@ -596,9 +602,9 @@ def drawBlock(blockref,num=None,createObject=False):
         if blockref.name[0] == '*':
             return None
     if len(blockref.entities.data) == 0:
-        print "skipping empty block ",blockref.name
+        print("skipping empty block ",blockref.name)
         return None
-    #print "creating block ", blockref.name, " containing ", len(blockref.entities.data), " entities"
+    #print("creating block ", blockref.name, " containing ", len(blockref.entities.data), " entities")
     shapes = []
     for line in blockref.entities.get_type('line'):
         s = drawLine(line,forceShape=True)
@@ -616,7 +622,7 @@ def drawBlock(blockref,num=None,createObject=False):
         s = drawCircle(circle,forceShape=True)
         if s: shapes.append(s)
     for insert in blockref.entities.get_type('insert'):
-        #print "insert ",insert," in block ",insert.block[0]
+        #print("insert ",insert," in block ",insert.block[0])
         if dxfStarBlocks or insert.block[0] != '*':
             s = drawInsert(insert)
             if s: shapes.append(s)
@@ -633,10 +639,10 @@ def drawBlock(blockref,num=None,createObject=False):
     for text in blockref.entities.get_type('mtext'):
         if dxfImportTexts:
              if dxfImportLayouts or (not rawValue(text,67)):
-                print "adding block text",text.value, " from ",blockref
+                print("adding block text",text.value, " from ",blockref)
                 addText(text)
     try: shape = Part.makeCompound(shapes)
-    except: warn(blockref)
+    except Part.OCCError: warn(blockref)
     if shape:
         blockshapes[blockref.name]=shape
         if createObject:
@@ -653,7 +659,7 @@ def drawInsert(insert,num=None,clone=False):
         for a in attrs:
             addText(a,attrib=True)
     if clone:
-        if blockobjects.has_key(insert.block):
+        if insert.block in blockobjects:
             newob = Draft.clone(blockobjects[insert.block])
             tsf = FreeCAD.Matrix()
             rot = math.radians(insert.rotation)
@@ -668,7 +674,7 @@ def drawInsert(insert,num=None,clone=False):
         else:
             shape = None
     else:
-        if blockshapes.has_key(insert):
+        if insert in blockshapes:
             shape = blockshapes[insert.block].copy()
         else:
             shape = None
@@ -693,12 +699,12 @@ def drawLayerBlock(objlist):
     if (dxfCreateDraft or dxfCreateSketch):
         try:
             obj = Draft.makeBlock(objlist)
-        except:
+        except Part.OCCError:
             pass
     else:
         try:
             obj = Part.makeCompound(objlist)
-        except:
+        except Part.OCCError:
             pass
     return obj
 
@@ -793,7 +799,7 @@ def addText(text,attrib=False):
             yv = ax.cross(xv)
             if text.alignment in [1,2,3]:
                 sup = DraftVecUtils.scaleTo(yv,fsize/TEXTSCALING).negative()
-                print ax,sup
+                #print(ax,sup)
                 pos = pos.add(sup)
             elif text.alignment in [4,5,6]:
                 sup = DraftVecUtils.scaleTo(yv,fsize/(2*TEXTSCALING)).negative()
@@ -1104,7 +1110,7 @@ def processdxf(document,filename,getShapes=False):
                     d = rawValue(dim,50)
                     if d: angle = float(d)
                     else: angle = 0
-                except:
+                except ValueError:
                     warn(dim)
                 else:
                     lay=locateLayer(layer)
@@ -1248,8 +1254,8 @@ def processdxf(document,filename,getShapes=False):
     # make blocks, if any
 
     if dxfMakeBlocks:
-        print "creating layerblocks..."
-        for k,l in layerBlocks.iteritems():
+        print("creating layerblocks...")
+        for k,l in layerBlocks.items():
             shape = drawLayerBlock(l)
             if shape:
                 newob = addObject(shape,k)
@@ -1257,24 +1263,25 @@ def processdxf(document,filename,getShapes=False):
     
     # hide block objects, if any
     
-    for k,o in blockobjects.iteritems():
+    for k,o in blockobjects.items():
         if o.ViewObject:
             o.ViewObject.hide()
     del blockobjects
     
     # finishing
 
-    print "done processing"
+    print("done processing")
 
     doc.recompute()
     FreeCAD.Console.PrintMessage("successfully imported "+filename+"\n")
-    if badobjects: print "dxf: ",len(badobjects)," objects were not imported"
+    if badobjects: 
+        print("dxf: ",len(badobjects)," objects were not imported")
     del doc
     del blockshapes
 
 def warn(dxfobject,num=None):
     "outputs a warning if a dxf object couldn't be imported"
-    print "dxf: couldn't import ", dxfobject, " (",num,")"
+    print("dxf: couldn't import ", dxfobject, " (",num,")")
     badobjects.append(dxfobject)
 
 def open(filename):
@@ -1292,7 +1299,7 @@ def insert(filename,docname):
         groupname = os.path.splitext(os.path.basename(filename))[0]
         try:
             doc=FreeCAD.getDocument(docname)
-        except:
+        except NameError:
             doc=FreeCAD.newDocument(docname)
         FreeCAD.setActiveDocument(docname)
         importgroup = doc.addObject("App::DocumentObjectGroup",groupname)
@@ -1314,8 +1321,8 @@ def projectShape(shape,direction):
     edges = []
     try:
         groups = Drawing.projectEx(shape,direction)
-    except:
-        print "unable to project shape on direction ",direction
+    except OCCError:
+        print("unable to project shape on direction ",direction)
         return shape
     else:
         for g in groups[0:5]:
@@ -1360,15 +1367,15 @@ def getArcData(edge):
         # method 2 - check the midpoint - not reliable either
         #ve3 = DraftGeomUtils.findMidpoint(edge)
         #ang3 = -math.degrees(DraftVecUtils.angle(ve3.sub(ce)))
-        #print "edge ",edge.hashCode()," data ",ang1, " , ",ang2," , ", ang3
+        #print ("edge ",edge.hashCode()," data ",ang1, " , ",ang2," , ", ang3)
         #if (ang3 < ang1) and (ang2 < ang3):
-        #    print "inverting, case1"
+        #    print ("inverting, case1")
         #    ang1, ang2 = ang2, ang1
         #elif (ang3 > ang1) and (ang3 > ang2):
-        #    print "inverting, case2"
+        #    print ("inverting, case2")
         #    ang1, ang2 = ang2, ang1
         #elif (ang3 < ang1) and (ang3 < ang2):
-        #    print "inverting, case3"
+        #    print ("inverting, case3")
         #    ang1, ang2 = ang2, ang1
         return DraftVecUtils.tup(ce), radius, ang1, ang2
 
@@ -1386,7 +1393,7 @@ def getSplineSegs(edge):
             nbsegs = int(math.ceil(edge.Length/seglength))
             step = (edge.LastParameter-edge.FirstParameter)/nbsegs
             for nv in range(1,nbsegs):
-                #print "value at",nv*step,"=",edge.valueAt(nv*step)
+                #print("value at",nv*step,"=",edge.valueAt(nv*step))
                 v = edge.valueAt(edge.FirstParameter+(nv*step))
                 points.append(v)
         points.append(edge.valueAt(edge.LastParameter))
@@ -1403,7 +1410,7 @@ def getWire(wire,nospline=False,lw=True):
             return ((v.x,v.y,v.z),None,[None,None],b)
     edges = DraftGeomUtils.sortEdges(wire.Edges)
     points = []
-    # print "processing wire ",wire.Edges
+    # print("processing wire ",wire.Edges)
     for edge in edges:
         v1 = edge.Vertexes[0].Point
         if DraftGeomUtils.geomType(edge) == "Circle":
@@ -1447,7 +1454,7 @@ def getWire(wire,nospline=False,lw=True):
     if not DraftGeomUtils.isReallyClosed(wire):
         v = edges[-1].Vertexes[-1].Point
         points.append(fmt(v))
-    # print "wire verts: ",points
+    # print("wire verts: ",points)
     return points
 
 def getBlock(sh,obj,lwPoly=False):
@@ -1489,7 +1496,7 @@ def writeShape(sh,ob,dxfobject,nospline=False,lwPoly=False):
         loneedges = []
         for e in sh.Edges:
             if not(e.hashCode() in processededges): loneedges.append(e)
-        # print "lone edges ",loneedges
+        # print("lone edges ",loneedges)
         for edge in loneedges:
             if (DraftGeomUtils.geomType(edge) in ["BSplineCurve","BezierCurve"]): # splines
                 if (len(edge.Vertexes) == 1) and (edge.Curve.isClosed()):
@@ -1538,7 +1545,7 @@ def writeShape(sh,ob,dxfobject,nospline=False,lwPoly=False):
                         ax = edge.Curve.Focus1.sub(edge.Curve.Center)
                         major = DraftVecUtils.tup(DraftVecUtils.scaleTo(ax,edge.Curve.MajorRadius))
                         minor = edge.Curve.MinorRadius/edge.Curve.MajorRadius
-                        # print "exporting ellipse: ",center,norm,start,end,major,minor
+                        # print("exporting ellipse: ",center,norm,start,end,major,minor)
                         dxfobject.append(dxfLibrary.Ellipse(center=center,majorAxis=major,normalAxis=norm,
                                                             minorAxisRatio=minor,startParameter=start,
                                                             endParameter=end,
@@ -1557,14 +1564,14 @@ def writeShape(sh,ob,dxfobject,nospline=False,lwPoly=False):
 def writeMesh(ob,dxfobject):
     "export a shape as a polyface mesh"
     meshdata = ob.Shape.tessellate(0.5)
-    # print meshdata
+    # print(meshdata)
     points = []
     faces = []
     for p in meshdata[0]:
         points.append([p.x,p.y,p.z])
     for f in meshdata[1]:
         faces.append([f[0]+1,f[1]+1,f[2]+1])
-    # print len(points),len(faces)
+    # print(len(points),len(faces))
     dxfobject.append(dxfLibrary.PolyLine([points,faces], [0.0,0.0,0.0],
                                          64, color=getACI(ob),
                                          layer=getGroup(ob)))
@@ -1593,7 +1600,7 @@ def export(objectslist,filename,nospline=False,lwPoly=False):
             # other cases, treat edges
             dxf = dxfLibrary.Drawing()
             for ob in exportList:
-                print "processing ",ob.Name
+                print("processing ",ob.Name)
                 if ob.isDerivedFrom("Part::Feature"):
                     if FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/Draft").GetBool("dxfmesh"):
                         sh = None
@@ -1681,7 +1688,7 @@ def exportPage(page,filename):
                 template = template.replace(editables[i],values[i])
     else:
         # dummy default template
-        print "DXF version of the template not found. Creating a default empty template."
+        print("DXF version of the template not found. Creating a default empty template.")
         template = "999\nFreeCAD DXF exporter v"+FreeCAD.Version()[0]+"."+FreeCAD.Version()[1]+"-"+FreeCAD.Version()[2]+"\n"
         template += "0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n"
         template += "0\nSECTION\n2\nBLOCKS\n$blocks\n0\nENDSEC\n"
@@ -1759,7 +1766,7 @@ def getViewDXF(view):
         dxfhandle += 1
         
     else:
-        print "Unable to get DXF representation from view: ",view.Label
+        print("Unable to get DXF representation from view: ",view.Label)
     return block,insert
     
 

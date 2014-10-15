@@ -52,24 +52,26 @@ using namespace Points;
 static PyObject *
 open(PyObject *self, PyObject *args)
 {
-    const char* Name;
-    if (!PyArg_ParseTuple(args, "s",&Name))
+    char* Name;
+    if (!PyArg_ParseTuple(args, "et","utf-8",&Name))
         return NULL;
+    std::string EncodedName = std::string(Name);
+    PyMem_Free(Name);
 
     PY_TRY {
-        Base::Console().Log("Open in Points with %s",Name);
-        Base::FileInfo file(Name);
+        Base::Console().Log("Open in Points with %s",EncodedName.c_str());
+        Base::FileInfo file(EncodedName.c_str());
 
         // extract ending
         if (file.extension() == "")
-            Py_Error(PyExc_Exception,"no file ending");
+            Py_Error(Base::BaseExceptionFreeCADError,"no file ending");
 
         if (file.hasExtension("asc")) {
             // create new document and add Import feature
             App::Document *pcDoc = App::GetApplication().newDocument("Unnamed");
             Points::Feature *pcFeature = (Points::Feature *)pcDoc->addObject("Points::Feature", file.fileNamePure().c_str());
             Points::PointKernel pkTemp;
-            pkTemp.load(Name);
+            pkTemp.load(EncodedName.c_str());
             pcFeature->Points.setValue( pkTemp );
 
         }
@@ -82,7 +84,7 @@ open(PyObject *self, PyObject *args)
 
             // pcl test
             pcl::PointCloud<pcl::PointXYZRGB> cloud_in;
-            pcl::io::loadPLYFile<pcl::PointXYZRGB>(Name,cloud_in); 
+            pcl::io::loadPLYFile<pcl::PointXYZRGB>(EncodedName.c_str(),cloud_in); 
 
             for (pcl::PointCloud<pcl::PointXYZRGB>::const_iterator it = cloud_in.begin();it!=cloud_in.end();++it)
                 pkTemp.push_back(Base::Vector3d(it->x,it->y,it->z));
@@ -90,7 +92,7 @@ open(PyObject *self, PyObject *args)
         }
 #endif
         else {
-            Py_Error(PyExc_Exception,"unknown file ending");
+            Py_Error(Base::BaseExceptionFreeCADError,"unknown file ending");
         }
     } PY_CATCH;
 
@@ -100,18 +102,20 @@ open(PyObject *self, PyObject *args)
 static PyObject *
 insert(PyObject *self, PyObject *args)
 {
-    const char* Name;
+    char* Name;
     const char* DocName;
-    if (!PyArg_ParseTuple(args, "ss",&Name,&DocName))
+    if (!PyArg_ParseTuple(args, "ets","utf-8",&Name,&DocName))
         return NULL;
+    std::string EncodedName = std::string(Name);
+    PyMem_Free(Name);
 
     PY_TRY {
-        Base::Console().Log("Import in Points with %s",Name);
-        Base::FileInfo file(Name);
+        Base::Console().Log("Import in Points with %s",EncodedName.c_str());
+        Base::FileInfo file(EncodedName.c_str());
 
         // extract ending
         if (file.extension() == "")
-            Py_Error(PyExc_Exception,"no file ending");
+            Py_Error(Base::BaseExceptionFreeCADError,"no file ending");
 
         if (file.hasExtension("asc")) {
             // add Import feature
@@ -122,7 +126,7 @@ insert(PyObject *self, PyObject *args)
 
             Points::Feature *pcFeature = (Points::Feature *)pcDoc->addObject("Points::Feature", file.fileNamePure().c_str());
             Points::PointKernel pkTemp;
-            pkTemp.load(Name);
+            pkTemp.load(EncodedName.c_str());
             pcFeature->Points.setValue( pkTemp );
         }
 #ifdef HAVE_PCL_IO
@@ -137,7 +141,7 @@ insert(PyObject *self, PyObject *args)
 
             // pcl test
             pcl::PointCloud<pcl::PointXYZRGB> cloud_in;
-            pcl::io::loadPLYFile<pcl::PointXYZRGB>(Name,cloud_in); 
+            pcl::io::loadPLYFile<pcl::PointXYZRGB>(EncodedName.c_str(),cloud_in); 
 
             for (pcl::PointCloud<pcl::PointXYZRGB>::const_iterator it = cloud_in.begin();it!=cloud_in.end();++it)
                 pkTemp.push_back(Base::Vector3d(it->x,it->y,it->z));
@@ -145,7 +149,7 @@ insert(PyObject *self, PyObject *args)
         }
 #endif
         else {
-            Py_Error(PyExc_Exception,"unknown file ending");
+            Py_Error(Base::BaseExceptionFreeCADError,"unknown file ending");
         }
     } PY_CATCH;
 

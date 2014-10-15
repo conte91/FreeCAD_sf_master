@@ -164,7 +164,7 @@ class Snapper:
         elif isinstance(screenpos,coin.SbVec2s):
             screenpos = tuple(screenpos.getValue())
         elif  not isinstance(screenpos,tuple):
-            print "snap needs valid screen position (list, tuple or sbvec2s)"
+            print("snap needs valid screen position (list, tuple or sbvec2s)")
             return None
 
         # setup trackers if needed
@@ -366,7 +366,7 @@ class Snapper:
             for snap in snaps:
                 if (not snap) or (snap[0] == None):
                     pass
-                    #print "debug: Snapper: invalid snap point: ",snaps
+                    #print("debug: Snapper: invalid snap point: ",snaps)
                 else:
                     delta = snap[0].sub(origin)
                     if delta.Length < shortest:
@@ -575,7 +575,10 @@ class Snapper:
                             vecs.extend([v,v.negative()])
                 for v in vecs:
                     if not DraftVecUtils.isNull(v):
-                        de = Part.Line(last,last.add(v)).toShape()  
+                        try:
+                            de = Part.Line(last,last.add(v)).toShape()
+                        except Part.OCCError:
+                            return point,None
                         np = self.getPerpendicular(de,point)
                         if ((self.radius == 0) and (point.sub(last).getAngle(v) < 0.087)) \
                         or ((np.sub(point)).Length < self.radius):
@@ -822,13 +825,13 @@ class Snapper:
         if self.selectMode:
             mw = FreeCADGui.getMainWindow()
             for w in mw.findChild(QtGui.QMdiArea).findChildren(QtGui.QWidget):
-                if w.metaObject().className() == "SoQtGLArea":
+                if w.metaObject().className() == "SIM::Coin3D::Quarter::QuarterWidget":
                     w.unsetCursor()
             self.cursorMode = None
         elif not mode:
             mw = FreeCADGui.getMainWindow()
             for w in mw.findChild(QtGui.QMdiArea).findChildren(QtGui.QWidget):
-                if w.metaObject().className() == "SoQtGLArea":
+                if w.metaObject().className() == "SIM::Coin3D::Quarter::QuarterWidget":
                     w.unsetCursor()
             self.cursorMode = None
         else:
@@ -846,7 +849,7 @@ class Snapper:
                 cur = QtGui.QCursor(newicon,8,8)
                 mw = FreeCADGui.getMainWindow()
                 for w in mw.findChild(QtGui.QMdiArea).findChildren(QtGui.QWidget):
-                    if w.metaObject().className() == "SoQtGLArea":
+                    if w.metaObject().className() == "SIM::Coin3D::Quarter::QuarterWidget":
                         w.setCursor(cur)
                 self.cursorMode = mode
 
@@ -1075,7 +1078,7 @@ class Snapper:
         self.masterbutton.setChecked(True)
         QtCore.QObject.connect(self.masterbutton,QtCore.SIGNAL("toggled(bool)"),self.toggle)
         self.toolbar.addWidget(self.masterbutton)
-        for c,i in self.cursors.iteritems():
+        for c,i in self.cursors.items():
             if i:
                 b = QtGui.QPushButton(None)
                 b.setIcon(QtGui.QIcon(i))
@@ -1222,5 +1225,5 @@ if not hasattr(FreeCADGui,"Snapper"):
 if not hasattr(FreeCAD,"DraftWorkingPlane"):
     import WorkingPlane, Draft_rc
     FreeCAD.DraftWorkingPlane = WorkingPlane.plane()
-    #print FreeCAD.DraftWorkingPlane
+    #print(FreeCAD.DraftWorkingPlane)
     FreeCADGui.addIconPath(":/icons")

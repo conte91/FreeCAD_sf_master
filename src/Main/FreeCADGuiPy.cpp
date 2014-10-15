@@ -27,17 +27,16 @@
 #   include <config.h>
 #endif // HAVE_CONFIG_H
 
-#include <Python.h>
 #include <QApplication>
 #include <QIcon>
 #include <QThread>
-#include <Inventor/Qt/SoQt.h>
 #if defined(Q_OS_WIN)
 #include <windows.h>
 #elif defined(Q_WS_X11)
 #include <QX11EmbedWidget>
 #endif
 // FreeCAD Base header
+#include <CXX/WrapPython.h>
 #include <Base/Exception.h>
 #include <Base/Factory.h>
 #include <Base/Interpreter.h>
@@ -46,7 +45,8 @@
 #include <Gui/BitmapFactory.h>
 #include <Gui/MainWindow.h>
 #include <Gui/SoFCDB.h>
-
+#include <Gui/Quarter/Quarter.h>
+#include <Inventor/SoDB.h>
 
 static
 QWidget* setupMainWindow();
@@ -163,7 +163,7 @@ FreeCADGui_setupWithoutGUI(PyObject * /*self*/, PyObject *args)
     if (!SoDB::isInitialized()) {
         // init the Inventor subsystem
         SoDB::init();
-        SoQt::init("FreeCAD");
+        SIM::Coin3D::Quarter::Quarter::init();
     }
     if (!Gui::SoFCDB::isInitialized()) {
         Gui::SoFCDB::init();
@@ -182,7 +182,7 @@ FreeCADGui_embedToWindow(PyObject * /*self*/, PyObject *args)
 
     QWidget* widget = Gui::getMainWindow();
     if (!widget) {
-        PyErr_SetString(PyExc_Exception, "No main window");
+        PyErr_SetString(Base::BaseExceptionFreeCADError, "No main window");
         return 0;
     }
 
@@ -260,7 +260,7 @@ QWidget* setupMainWindow()
         if (!SoDB::isInitialized()) {
             // init the Inventor subsystem
             SoDB::init();
-            SoQt::init(mw);
+            SIM::Coin3D::Quarter::Quarter::init();
             Gui::SoFCDB::init();
         }
 
@@ -271,7 +271,7 @@ QWidget* setupMainWindow()
                 Base::Interpreter().runString(Base::ScriptFactory().ProduceScript("FreeCADGuiInit"));
             }
             catch (const Base::Exception& e) {
-                PyErr_Format(PyExc_Exception, "Error in FreeCADGuiInit.py: %s\n", e.what());
+                PyErr_Format(Base::BaseExceptionFreeCADError, "Error in FreeCADGuiInit.py: %s\n", e.what());
                 return 0;
             }
             init = true;
@@ -310,7 +310,7 @@ PyMODINIT_FUNC initFreeCADGui()
         Base::Interpreter().loadModule("FreeCAD");
         App::Application::Config()["AppIcon"] = "freecad";
         App::Application::Config()["SplashScreen"] = "freecadsplash";
-        App::Application::Config()["CopyrightInfo"] = "\xc2\xa9 Juergen Riegel, Werner Mayer, Yorik van Havre 2001-2011\n";
+        App::Application::Config()["CopyrightInfo"] = "\xc2\xa9 Juergen Riegel, Werner Mayer, Yorik van Havre 2001-2014\n";
         Gui::Application::initApplication();
         Py_InitModule("FreeCADGui", FreeCADGui_methods);
     }

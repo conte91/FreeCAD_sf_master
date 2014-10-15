@@ -29,9 +29,9 @@
 #include <Inventor/SbColor.h>
 #include <Base/Tools2D.h>
 #include <Gui/Selection.h>
+#include <Gui/GLPainter.h>
 #include <boost/signals.hpp>
 #include <QCoreApplication>
-
 
 class TopoDS_Shape;
 class TopoDS_Face;
@@ -204,8 +204,7 @@ public:
     /// is called when the Provider is in edit and a key event ocours. Only ESC ends edit.
     virtual bool keyPressed(bool pressed, int key);
     /// is called when the Provider is in edit and the mouse is clicked
-    virtual bool mouseButtonPressed(int Button, bool pressed, const SbVec2s &pos,
-                                    const Gui::View3DInventorViewer *viewer);
+    virtual bool mouseButtonPressed(int Button, bool pressed, const SbVec2s& cursorPos, const Gui::View3DInventorViewer* viewer);
     //@}
 
     friend class DrawSketchHandler;
@@ -220,7 +219,12 @@ public:
     /// signals if the elements list has changed
     boost::signal<void ()> signalElementsChanged;
     
-
+    /** @name Act sketch interface */
+    //@{
+    const std::vector<int> &getConflicting(void) const;
+    const std::vector<int> &getRedundant(void) const; 
+    //@}
+    
 protected:
     virtual bool setEdit(int ModNum);
     virtual void unsetEdit(int ModNum);
@@ -277,6 +281,9 @@ protected:
 
         /// Pointer to SoInfo object where we store the constraint IDs that the icon refers to
         SoInfo *infoPtr;
+        
+        /// Angle to rotate an icon
+        double iconRotation;
     };
 
     /// Internal type used for drawing constraint icons
@@ -299,6 +306,7 @@ protected:
                             const QColor &iconColor,
                             const QStringList &labels,
                             const QList<QColor> &labelColors,
+                            double iconRotation,
                             //! Gets populated with bounding boxes (in icon
                             //! image coordinates) for the icon at left, then
                             //! labels for different constraints.
@@ -363,7 +371,8 @@ protected:
     // reference coordinates for relative operations
     double xInit,yInit;
     bool relative;
-    int antiAliasing;
+
+    Gui::Rubberband* rubberband;
 };
 
 } // namespace PartGui

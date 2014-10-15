@@ -42,10 +42,10 @@ import xml.sax, string, FreeCAD, os, math, re, Draft, DraftVecUtils
 from FreeCAD import Vector
 
 try: import FreeCADGui
-except: gui = False
+except ImportError: gui = False
 else: gui = True
 try: draftui = FreeCADGui.draftToolBar
-except: draftui = None
+except AttributeError: draftui = None
 
 if open.__module__ == '__builtin__':
   pythonopen = open
@@ -201,7 +201,7 @@ svgcolors = {
           'OldLace': (253, 245, 230)
           }
 svgcolorslower = dict((key.lower(),value) for key,value in \
-    svgcolors.items())
+    list(svgcolors.items()))
 
 def getcolor(color):
     "checks if the given string is a RGB value, or if it is a named color. returns 1-based RGBA tuple."
@@ -280,14 +280,13 @@ def getsize(length,mode='discard',base=1):
 def makewire(path,checkclosed=False,donttry=False):
         '''try to make a wire out of the list of edges. If the 'Wire' functions fails or the wire is not
         closed if required the 'connectEdgesToWires' function is used'''
-        #ToDo Do not catch all exceptions
         if not donttry:
                 try:
                         import DraftGeomUtils
                         sh = Part.Wire(DraftGeomUtils.sortEdges(path))
                         #sh = Part.Wire(path)
                         isok = (not checkclosed) or sh.isClosed()
-                except:# BRep_API:command not done
+                except Part.OCCError:# BRep_API:command not done
                         isok = False
         if donttry or not isok:
                         #Code from wmayer forum p15549 to fix the tolerance problem
@@ -412,7 +411,7 @@ class svgHandler(xml.sax.ContentHandler):
                 FreeCAD.Console.PrintMessage('existing group transform: %s\n'%(str(self.grouptransform)))
                 
                 data = {}
-                for (keyword,content) in attrs.items():
+                for (keyword,content) in list(attrs.items()):
                         #print keyword,content
                         content = content.replace(',',' ')
                         content = content.split()
@@ -671,9 +670,9 @@ class svgHandler(xml.sax.ContentHandler):
                                         (d =="S" or d == "s"):
                                         smooth = (d == 'S'  or d == 's')
                                         if smooth:
-                                            piter = zip(pointlist[2::4],pointlist[3::4],pointlist[0::4],pointlist[1::4],pointlist[2::4],pointlist[3::4])
+                                            piter = list(zip(pointlist[2::4],pointlist[3::4],pointlist[0::4],pointlist[1::4],pointlist[2::4],pointlist[3::4]))
                                         else:
-                                            piter = zip(pointlist[0::6],pointlist[1::6],pointlist[2::6],pointlist[3::6],pointlist[4::6],pointlist[5::6])
+                                            piter = list(zip(pointlist[0::6],pointlist[1::6],pointlist[2::6],pointlist[3::6],pointlist[4::6],pointlist[5::6]))
                                         for p1x,p1y,p2x,p2y,x,y in piter:
                                                 if smooth:
                                                         if lastpole is not None and lastpole[0]=='cubic':
@@ -715,9 +714,9 @@ class svgHandler(xml.sax.ContentHandler):
                                         (d =="T" or d == "t"):
                                         smooth = (d == 'T'  or d == 't')
                                         if smooth:
-                                            piter = zip(pointlist[1::2],pointlist[1::2],pointlist[0::2],pointlist[1::2])
+                                            piter = list(zip(pointlist[1::2],pointlist[1::2],pointlist[0::2],pointlist[1::2]))
                                         else:
-                                            piter = zip(pointlist[0::4],pointlist[1::4],pointlist[2::4],pointlist[3::4])
+                                            piter = list(zip(pointlist[0::4],pointlist[1::4],pointlist[2::4],pointlist[3::4]))
                                         for px,py,x,y in piter:
                                                 if smooth:
                                                         if lastpole is not None and lastpole[0]=='quadratic':
@@ -752,7 +751,7 @@ class svgHandler(xml.sax.ContentHandler):
                                         if not DraftVecUtils.equals(lastvec,firstvec):
                                             try:
                                                 seg = Part.Line(lastvec,firstvec).toShape()
-                                            except:
+                                            except Part.OCCError:
                                                 pass
                                             else:
                                                 path.append(seg)
@@ -1108,7 +1107,7 @@ def open(filename):
 def insert(filename,docname):
         try:
                 doc=FreeCAD.getDocument(docname)
-        except:
+        except NameError:
                 doc=FreeCAD.newDocument(docname)
         FreeCAD.ActiveDocument = doc
         parser = xml.sax.make_parser()

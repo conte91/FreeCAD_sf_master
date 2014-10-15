@@ -37,7 +37,7 @@ std::string QuantityPy::representation(void) const
 {
     std::stringstream ret;
     ret << getQuantityPtr()->getValue() << " "; 
-    ret << getQuantityPtr()->getUnit().getString().toLatin1().constData();
+    ret << getQuantityPtr()->getUnit().getString().toUtf8().constData();
 
     return ret.str();
 }
@@ -83,10 +83,12 @@ int QuantityPy::PyInit(PyObject* args, PyObject* kwd)
         return 0;
     }
     PyErr_Clear(); // set by PyArg_ParseTuple()
-    const char* string;
-    if (PyArg_ParseTuple(args,"s", &string)) {
+    char* string;
+    if (PyArg_ParseTuple(args,"et", "utf-8", &string)) {
+        QString qstr = QString::fromUtf8(string);
+        PyMem_Free(string);
         try {
-            *self = Quantity::parse(QString::fromLatin1(string));
+            *self = Quantity::parse(qstr);
         }catch(const Base::Exception& e) {
             PyErr_SetString(PyExc_ValueError, e.what());
             return-1;
@@ -107,9 +109,9 @@ PyObject* QuantityPy::getUserPreferred(PyObject *args)
 
     QString uss = getQuantityPtr()->getUserString(factor,uus);
 
-    res[0] = Py::String(uss.toLatin1());
+    res[0] = Py::String(uss.toUtf8(),"utf-8");
     res[1] = Py::Float(factor);
-    res[2] = Py::String(uus.toLatin1());
+    res[2] = Py::String(uus.toUtf8(),"utf-8");
 
     return Py::new_reference_to(res);
 }
@@ -169,9 +171,11 @@ PyObject* QuantityPy::getValueAs(PyObject *args)
 
     if (!quant.isValid()) {
         PyErr_Clear();
-        const char* string;
-        if (PyArg_ParseTuple(args,"s", &string)) {
-            quant = Quantity::parse(QString::fromLatin1(string));
+        char* string;
+        if (PyArg_ParseTuple(args,"et", "utf-8", &string)) {
+        QString qstr = QString::fromUtf8(string);
+        PyMem_Free(string);
+        quant = Quantity::parse(qstr);
         }
     }
 
@@ -559,7 +563,7 @@ void QuantityPy::setUnit(Py::Object arg)
 
 Py::String QuantityPy::getUserString(void) const
 {
-    return Py::String(getQuantityPtr()->getUserString().toLatin1());
+    return Py::String(getQuantityPtr()->getUserString().toUtf8(),"utf-8");
 }
 
 PyObject *QuantityPy::getCustomAttributes(const char* /*attr*/) const

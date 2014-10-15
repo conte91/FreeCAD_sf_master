@@ -102,6 +102,8 @@
 
 #include "Language/Translator.h"
 #include "TaskView/TaskDialogPython.h"
+#include <Gui/Quarter/Quarter.h>
+#include "View3DViewerPy.h"
 #include "GuiInitScript.h"
 
 
@@ -300,14 +302,6 @@ FreeCADGui_getSoDBVersion(PyObject * /*self*/, PyObject *args)
     return PyString_FromString(SoDB::getVersion());
 }
 
-static PyObject *
-FreeCADGui_getSoQtVersion(PyObject * /*self*/, PyObject *args)
-{
-    if (!PyArg_ParseTuple(args, ""))
-        return NULL;
-    return PyString_FromString(SoQt::getVersionString());
-}
-
 struct PyMethodDef FreeCADGui_methods[] = {
     {"subgraphFromObject",FreeCADGui_subgraphFromObject,METH_VARARGS,
      "subgraphFromObject(object) -> Node\n\n"
@@ -316,10 +310,6 @@ struct PyMethodDef FreeCADGui_methods[] = {
      "getSoDBVersion() -> String\n\n"
      "Return a text string containing the name\n"
      "of the Coin library and version information"},
-    {"getSoQtVersion",FreeCADGui_getSoQtVersion,METH_VARARGS,
-     "getSoQtVersion() -> String\n\n"
-     "Return a text string containing the name\n"
-     "of the SoQt library and version information"},
     {NULL, NULL}  /* sentinel */
 };
 
@@ -419,13 +409,14 @@ Application::Application(bool GUIenabled)
     }
 
     // Python console binding
-    PythonDebugModule   ::init_module();
-    PythonStdout        ::init_type();
-    PythonStderr        ::init_type();
-    OutputStdout        ::init_type();
-    OutputStderr        ::init_type();
-    PythonStdin         ::init_type();
-    View3DInventorPy    ::init_type();
+    PythonDebugModule           ::init_module();
+    PythonStdout                ::init_type();
+    PythonStderr                ::init_type();
+    OutputStdout                ::init_type();
+    OutputStderr                ::init_type();
+    PythonStdin                 ::init_type();
+    View3DInventorPy            ::init_type();
+    View3DInventorViewerPy      ::init_type();
 
     d = new ApplicationP;
 
@@ -450,12 +441,11 @@ Application::~Application()
     BitmapFactoryInst::destruct();
 
 #if 0
-    // we must run the garbage collector before shutting down the SoDB or SoQt 
+    // we must run the garbage collector before shutting down the SoDB 
     // subsystem because we may reference some class objects of them in Python
     Base::Interpreter().cleanupSWIG("SoBase *");
     // finish also Inventor subsystem
     SoFCDB::finish();
-    SoQt::done();
 
 #if (COIN_MAJOR_VERSION >= 2) && (COIN_MINOR_VERSION >= 4)
     SoDB::finish();
@@ -489,7 +479,7 @@ void Application::open(const char* FileName, const char* Module)
     wc.setIgnoreEvents(WaitCursor::NoEvents);
     Base::FileInfo File(FileName);
     string te = File.extension();
-
+    string unicodepath = Base::Tools::escapedUnicodeFromUtf8(File.filePath().c_str());
     // if the active document is empty and not modified, close it
     // in case of an automatically created empty document at startup
     App::Document* act = App::GetApplication().getActiveDocument();
@@ -504,11 +494,14 @@ void Application::open(const char* FileName, const char* Module)
         Command::doCommand(Command::App, "import %s", Module);
         try {
             // load the file with the module
-            Command::doCommand(Command::App, "%s.open(\"%s\")", Module, File.filePath().c_str());
+            Command::doCommand(Command::App, "%s.open(u\"%s\")", Module, unicodepath.c_str());
             // ViewFit
-            if (!File.hasExtension("FCStd") && sendHasMsgToActiveView("ViewFit"))
-                //Command::doCommand(Command::Gui, "Gui.activeDocument().activeView().fitAll()");
-                Command::doCommand(Command::Gui, "Gui.SendMsgToActiveView(\"ViewFit\")");
+            if (!File.hasExtension("FCStd") && sendHasMsgToActiveView("ViewFit")) {
+                ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath
+                    ("User parameter:BaseApp/Preferences/View");
+                if (hGrp->GetBool("AutoFitToView", true))
+                    Command::doCommand(Command::Gui, "Gui.SendMsgToActiveView(\"ViewFit\")");
+            }
             // the original file name is required
             getMainWindow()->appendRecentFile(QString::fromUtf8(File.filePath().c_str()));
         }
@@ -532,6 +525,7 @@ void Application::importFrom(const char* FileName, const char* DocName, const ch
     wc.setIgnoreEvents(WaitCursor::NoEvents);
     Base::FileInfo File(FileName);
     std::string te = File.extension();
+    string unicodepath = Base::Tools::escapedUnicodeFromUtf8(File.filePath().c_str());
 
     if (Module != 0) {
         // issue module loading
@@ -540,15 +534,18 @@ void Application::importFrom(const char* FileName, const char* DocName, const ch
         try {
             // load the file with the module
             if (File.hasExtension("FCStd")) {
-                Command::doCommand(Command::App, "%s.open(\"%s\")"
-                                               , Module, File.filePath().c_str());
+                Command::doCommand(Command::App, "%s.open(u\"%s\")"
+                                               , Module, unicodepath.c_str());
                 if (activeDocument())
                     activeDocument()->setModified(false);
             }
             else {
-                Command::doCommand(Command::App, "%s.insert(\"%s\",\"%s\")"
-                                               , Module, File.filePath().c_str(), DocName);
-                Command::doCommand(Command::Gui, "Gui.SendMsgToActiveView(\"ViewFit\")");
+                Command::doCommand(Command::App, "%s.insert(u\"%s\",\"%s\")"
+                                               , Module, unicodepath.c_str(), DocName);
+                ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath
+                    ("User parameter:BaseApp/Preferences/View");
+                if (hGrp->GetBool("AutoFitToView", true))
+                    Command::doCommand(Command::Gui, "Gui.SendMsgToActiveView(\"ViewFit\")");
                 if (getDocument(DocName))
                     getDocument(DocName)->setModified(true);
             }
@@ -574,6 +571,7 @@ void Application::exportTo(const char* FileName, const char* DocName, const char
     WaitCursor wc;
     Base::FileInfo File(FileName);
     std::string te = File.extension();
+    string unicodepath = Base::Tools::escapedUnicodeFromUtf8(File.filePath().c_str());
 
     if (Module != 0) {
         try {
@@ -592,7 +590,7 @@ void Application::exportTo(const char* FileName, const char* DocName, const char
             }
 
             str << "import " << Module << std::endl;
-            str << Module << ".export(__objs__,\"" << File.filePath() << "\")" << std::endl;
+            str << Module << ".export(__objs__,u\"" << unicodepath << "\")" << std::endl;
             str << "del __objs__" << std::endl;
 
             std::string code = str.str();
@@ -1397,6 +1395,9 @@ void messageHandler(QtMsgType type, const char *msg)
     case QtWarningMsg:
         Base::Console().Warning("%s\n", msg);
         break;
+    case QtCriticalMsg:
+        Base::Console().Error("%s\n", msg);
+        break;
     case QtFatalMsg:
         Base::Console().Error("%s\n", msg);
         abort();                    // deliberately core dump
@@ -1440,10 +1441,6 @@ void messageHandlerCoin(const SoError * error, void * userdata)
     }
 }
 
-void messageHandlerSoQt(const SbString errmsg, SoQt::FatalErrors errcode, void *userdata)
-{
-    Base::Console().Error( errmsg.getString() );
-}
 #endif
 
 // To fix bug #0000345 move Q_INIT_RESOURCE() outside initApplication()
@@ -1673,7 +1670,7 @@ void Application::runApplication(void)
 
     // init the Inventor subsystem
     SoDB::init();
-    SoQt::init(&mw);
+    SIM::Coin3D::Quarter::Quarter::init();
     SoFCDB::init();
 
     QString home = QString::fromUtf8(App::GetApplication().GetHomePath());
@@ -1775,7 +1772,6 @@ void Application::runApplication(void)
 
 #ifdef FC_DEBUG // redirect Coin messages to FreeCAD
     SoDebugError::setHandlerCallback( messageHandlerCoin, 0 );
-    SoQt::setFatalErrorHandler( messageHandlerSoQt, 0 );
 #endif
 
 
