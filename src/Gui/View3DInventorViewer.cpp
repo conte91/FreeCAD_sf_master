@@ -300,18 +300,18 @@ public:
 View3DInventorViewer::View3DInventorViewer(QWidget* parent, const QGLWidget* sharewidget)
     : Quarter::SoQTQuarterAdaptor(parent, sharewidget), editViewProvider(0), navigation(0),
       framebuffer(0), axisCross(0), axisGroup(0), editing(FALSE), redirected(FALSE),
-      allowredir(FALSE), overrideMode("As Is")
+      allowredir(FALSE), overrideMode("As Is"), _viewerPy(0)
 {
     init();
-};
+}
 
 View3DInventorViewer::View3DInventorViewer(const QGLFormat& format, QWidget* parent, const QGLWidget* sharewidget)
     : Quarter::SoQTQuarterAdaptor(format, parent, sharewidget), editViewProvider(0), navigation(0),
       framebuffer(0), axisCross(0), axisGroup(0), editing(FALSE), redirected(FALSE),
-      allowredir(FALSE), overrideMode("As Is")
+      allowredir(FALSE), overrideMode("As Is"), _viewerPy(0)
 {
     init();
-};
+}
 
 void View3DInventorViewer::init()
 {
@@ -486,13 +486,18 @@ View3DInventorViewer::~View3DInventorViewer()
     delete this->navigation;
 
     // Note: When closing the application the main window doesn't exist any more.
-    if(getMainWindow())
+    if (getMainWindow())
         getMainWindow()->setPaneText(2, QLatin1String(""));
 
     Gui::Selection().Detach(this);
 
     removeEventFilter(viewerEventFilter);
     delete viewerEventFilter;
+
+    if (_viewerPy) {
+        static_cast<View3DInventorViewerPy*>(_viewerPy)->_viewer = 0;
+        Py_DECREF(_viewerPy);
+    }
 }
 
 void View3DInventorViewer::setDocument(Gui::Document* pcDocument)
@@ -774,11 +779,9 @@ void View3DInventorViewer::setSceneGraph(SoNode* root)
     //we want the rendered scene with all lights and cameras, viewer->getSceneGraph would return 
     //the geometry scene only
     SoNode* scene = this->getSoRenderManager()->getSceneGraph();
-
-    if(scene && scene->getTypeId().isDerivedFrom(SoSeparator::getClassTypeId())) {
+    if (scene && scene->getTypeId().isDerivedFrom(SoSeparator::getClassTypeId())) {
         sa.apply(scene);
-
-        if(!sa.getPath())
+        if (!sa.getPath())
             static_cast<SoSeparator*>(scene)->insertChild(this->backlight, 0);
     }
 }
@@ -895,7 +898,7 @@ void View3DInventorViewer::saveGraphic(int pagesize, int eBackgroundType, SoVect
     SbVec2s vpsize = this->getSoRenderManager()->getViewportRegion().getViewportSizePixels();
     float vpratio = ((float)vpsize[0]) / ((float)vpsize[1]);
 
-    if(vpratio > 1.0f) {
+    if (vpratio > 1.0f) {
         va->setOrientation(SoVectorizeAction::LANDSCAPE);
         vpratio = 1.0f / vpratio;
     }
@@ -911,7 +914,7 @@ void View3DInventorViewer::saveGraphic(int pagesize, int eBackgroundType, SoVect
     float pageratio = size[0] / size[1];
     float xsize, ysize;
 
-    if(pageratio < vpratio) {
+    if (pageratio < vpratio) {
         xsize = size[0];
         ysize = xsize / vpratio;
     }
@@ -1230,7 +1233,7 @@ void View3DInventorViewer::renderToFramebuffer(QGLFramebufferObject* fbo)
     gl.apply(this->getSoRenderManager()->getSceneGraph());
     gl.apply(this->foregroundroot);
 
-    if(this->axiscrossEnabled) {
+    if (this->axiscrossEnabled) {
         this->drawAxisCross();
     }
 
@@ -1699,7 +1702,7 @@ bool View3DInventorViewer::pickPoint(const SbVec2s& pos,SbVec3f& point,SbVec3f& 
     rp.apply(getSoRenderManager()->getSceneGraph());
     SoPickedPoint* Point = rp.getPickedPoint();
 
-    if(Point) {
+    if (Point) {
         point = Point->getObjectPoint();
         norm  = Point->getObjectNormal();
         return true;
@@ -1728,7 +1731,7 @@ SoPickedPoint* View3DInventorViewer::pickPoint(const SbVec2s& pos) const
 
 const SoPickedPoint* View3DInventorViewer::getPickedPoint(SoEventCallback* n) const
 {
-    if(selectionRoot)
+    if (selectionRoot)
         return selectionRoot->getPickedPoint(n->getAction());
     else
         return n->getPickedPoint();
@@ -2666,11 +2669,11 @@ void View3DInventorViewer::setAntiAliasingMode(View3DInventorViewer::AntiAliasin
         break;
     };
 
-    if(getSoRenderManager()->getGLRenderAction()->isSmoothing() != smoothing)
+    if (getSoRenderManager()->getGLRenderAction()->isSmoothing() != smoothing)
         getSoRenderManager()->getGLRenderAction()->setSmoothing(smoothing);
 
-    if(static_cast<QGLWidget*>(this->viewport())->format().samples() != buffers)
-        Base::Console().Message("To change multisampling settings please close and open the 3d view again");
+    if (static_cast<QGLWidget*>(this->viewport())->format().samples() != buffers)
+        Base::Console().Message("To change multisampling settings please close and open the 3d view again\n");
 
 }
 
